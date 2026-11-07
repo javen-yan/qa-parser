@@ -52,17 +52,49 @@ def snapshot(folder: Path):
 
 
 def process_inventory():
-    """Failure to inspect activity never means the directories are unused."""
+    """Inspect only approved candidate trees; verify that empty lsof is reliable.
+
+    lsof returns 1 when a target has no open files. This is accepted only after
+    a positive control detects this process's deliberately opened script file.
+    Any stderr, timeout or other exit code keeps the operation fail-closed.
+    """
     if os.name != 'posix':
         return {'status': 'unavailable', 'reason': 'This local archive helper currently requires POSIX ps/lsof.'}
+    stage = 'process table'
     try:
         ps = subprocess.run(['ps', '-axo', 'pid=,command='], capture_output=True, text=True, timeout=15, check=True)
-        opened = subprocess.run(['lsof', '-u', str(os.getuid()), '-Fn'], capture_output=True, text=True, timeout=30, check=True)
+        if ps.stderr.strip():
+            raise RuntimeError('process table returned diagnostics')
+        stage = 'lsof positive control'
+        control = Path(__file__).resolve()
+        with control.open('rb'):
+            probe = subprocess.run(['lsof', '-nP', '-a', '-p', str(os.getpid()), '-Fpn', str(control)],
+                                   capture_output=True, text=True, timeout=15, check=False)
+        if probe.returncode != 0 or probe.stderr.strip() or 'n' + str(control) not in probe.stdout.splitlines():
+            raise RuntimeError('lsof could not detect deliberately opened control file')
+        paths = []
+        checked = []
+        for relative in CANDIDATES:
+            folder = ROOT / relative
+            if not folder.exists():
+                continue
+            stage = 'candidate open-file scan: ' + relative
+            opened = subprocess.run(['lsof', '-nP', '-a', '-u', str(os.getuid()), '-Fpn', '+D', str(folder)],
+                                    capture_output=True, text=True, timeout=20, check=False)
+            if opened.returncode not in (0, 1) or opened.stderr.strip():
+                raise RuntimeError(f'candidate lsof returned exit {opened.returncode} or diagnostics')
+            matching = [line[1:] for line in opened.stdout.splitlines() if line.startswith('n')]
+            if opened.returncode == 1 and matching:
+                raise RuntimeError('inconsistent lsof exit/status')
+            if any(path != str(folder) and not path.startswith(str(folder) + '/') for path in matching):
+                raise RuntimeError('lsof returned a path outside requested candidate')
+            paths.extend(matching)
+            checked.append(relative)
         # Never put whole process commands or unrelated filenames in the manifest.
-        return {'status': 'available', '_commands': ps.stdout.splitlines(),
-                '_paths': [line[1:] for line in opened.stdout.splitlines() if line.startswith('n')]}
-    except (OSError, subprocess.SubprocessError) as error:
-        return {'status': 'unavailable', 'reason': type(error).__name__ + ': process/open-file inspection failed'}
+        return {'status': 'available', 'positive_control': 'passed', 'candidate_trees_checked': checked,
+                '_commands': ps.stdout.splitlines(), '_paths': paths}
+    except (OSError, subprocess.SubprocessError, RuntimeError) as error:
+        return {'status': 'unavailable', 'reason': type(error).__name__ + ': ' + stage + ' failed'}
 
 
 def activity_hits(relative, activity):
@@ -143,7 +175,8 @@ def apply_plan(plan, manifest):
             raise ValueError('Candidate is on another filesystem')
         checked.append((entry, source, destination))
     receipt = {'schema_version': 1, 'mode': 'archive_receipt', 'source_manifest': str(manifest),
-               'project_root': str(ROOT), 'moves': [], 'status': 'running'}
+               'project_root': str(ROOT), 'activity_check': {k: v for k, v in activity.items() if not k.startswith('_')},
+               'moves': [], 'status': 'running'}
     receipt_path = manifest.with_name(manifest.stem + '-receipt.json')
     if receipt_path.exists():
         raise FileExistsError('Receipt already exists')

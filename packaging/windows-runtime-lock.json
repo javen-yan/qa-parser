@@ -240,6 +240,12 @@
         "url": "https://repo.msys2.org/mingw/sources/mingw-w64-zlib-1.4-2.src.tar.zst",
         "sha256": "28415621a0f6c16bc20b0ce50cd1ae3632dd9f27bdc5776ab3ec18e8d2f00dcd",
         "bytes": 1324155
+      },
+      {
+        "filename": "mingw-w64-libwmf-0.2.16-1.src.tar.zst",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-libwmf-0.2.16-1.src.tar.zst",
+        "sha256": "10bb0c603160245e6d63cb429ee08bf91dadb8c6c3cce1a96adbc266267a7bd9",
+        "bytes": 2687667
       }
     ],
     "missing_sources": [
@@ -286,11 +292,6 @@
       {
         "name": "mingw-w64-libpng",
         "url": "https://repo.msys2.org/mingw/sources/mingw-w64-libpng-1.6.59-2.src.tar.zst",
-        "status": "not yet downloaded and pinned; external redistribution blocked"
-      },
-      {
-        "name": "mingw-w64-libwmf",
-        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-libwmf-0.2.16-1.src.tar.zst",
         "status": "not yet downloaded and pinned; external redistribution blocked"
       },
       {
