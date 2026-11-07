@@ -47,4 +47,8 @@ Mac完整回归307项通过；公开合成检查228项通过、79项明确排除
 
 首次HTTPS推送因gh OAuth缺少workflow权限被拒绝；随后通过GitHub SSH443及受限密钥尝试成功认证，使用已有SSH授权继续。Windows运行结果另行记录，不能将本地准备标为云端成功。
 
-原生依赖的12个对应源码归档仍待补齐，锁文件及包内通知明确限制外部分发。固定WebView2主许可已从微软官网API保存并校验。运行通过与再分发资料完整是两个独立条件。
+原生依赖对应源码现已补齐并固定：15个源码归档，共133,328,227字节（约127.15 MiB），覆盖随包libwmf及其非GCC运行库依赖。每个归档均来自MSYS2主服务器的固定版本URL，保存实际SHA256，检查了非空归档、PKGBUILD、.SRCINFO和上游压缩包或VCS源码目录。glib2 2.90.1、libiconv 1.19.1、gettext 1.0均已包含；不是只有源码链接或空归档。具体版本、来源和哈希见`packaging/windows-runtime-lock.json`的`wmf.sources`，`missing_sources`为空。
+
+libgcc/libstdc++保留精确二进制包、构建元数据和许可证；它们采用GCC Runtime Library Exception 3.1，本包没有额外携带整个GCC编译器源码。MSYS2源码归档包含重建配方，但这不表示本轮已经从源码重建并实现逐字节二进制复现。
+
+固定WebView2主许可已从微软官网实际使用的[EULA API](https://developer.microsoft.com/microsoft-edge/api/eula/webview2?locale=en-us&fixed=true)保存并校验，随包保留完整许可及运行时内部第三方通知。源码与许可载荷准备完成不等于Windows客户运行验证或下游分发协议已验证。以上源码补齐需要下一次构建才会进入实际产物；以产物内`resources-manifest.json`和随包锁文件为准。

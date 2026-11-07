@@ -1,0 +1,9 @@
+* text=auto eol=lf
+# These bytes are checksum-pinned upstream resources; never rewrite newlines.
+packaging/licenses/* -text
+packaging/vendor-sources/* -text
+*.otf -text
+*.woff2 -text
+*.png -text
+*.ico -text
+*.icns -text
