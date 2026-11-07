@@ -56,6 +56,8 @@ node tests/test_math_preview.js
 
 Mac桌面依赖见`requirements-desktop.lock`，构建入口为`scripts/build_desktop.py`；`启动题库转换.command`是本机依赖`.venv`的开发入口。Windows使用`requirements-windows.lock`及`packaging/windows-build.ps1`，不能在Windows安装Mac锁文件或复制Mac dylib。
 
+本地临时产物整理与恢复方式见[归档说明](docs/local-artifacts.md)。
+
 构建时需联网获取依赖，运行时不下载。Windows原生来源、固定版本和SHA在`packaging/windows-runtime-lock.json`；下载、校验或资源缺失会让构建失败，不发布伪成功包。Python包锁定版本；网络失败可重新手动运行工作流。第三方许可见[依赖说明](THIRD_PARTY_NOTICES.md)及包内licenses。
 
 CLI还提供`parse`、`validate`、`export`、`batch`和`config`。退出码：0完整成功、2部分失败/待复核、1执行或全部失败。Web调试入口`ui`保留，桌面默认不打开系统浏览器。

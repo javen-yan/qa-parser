@@ -30,9 +30,10 @@ def download(item, cache):
         return path
     temporary = path.with_suffix(path.suffix + '.partial')
     # curl is a build-host tool on Windows Server; TLS validation remains on.
-    subprocess.run(['curl.exe' if sys.platform == 'win32' else 'curl', '-fL', '--retry', '3',
+    print(f"Downloading build dependency: {item['filename']}", flush=True)
+    subprocess.run(['curl.exe' if sys.platform == 'win32' else 'curl', '-fL', '--retry', '3', '--retry-all-errors',
                     '--connect-timeout', '30', '--max-time', '600', item['url'], '-o', str(temporary)], check=True)
-    if sha(temporary) != item['sha256']:
+    if not temporary.is_file() or sha(temporary) != item['sha256']:
         temporary.unlink(missing_ok=True)
         raise RuntimeError(f"Checksum mismatch: {item['filename']}")
     temporary.replace(path)
@@ -92,6 +93,10 @@ def stage(out: Path, cache: Path):
     lock = json.loads(LOCK.read_text(encoding='utf-8'))
     licenses = out / 'licenses'
     licenses.mkdir()
+    license_source = ROOT / lock['webview2']['license']['path']
+    if sha(license_source) != lock['webview2']['license']['sha256']:
+        raise RuntimeError('Fixed WebView2 license checksum mismatch')
+    shutil.copy2(license_source, licenses / license_source.name)
     cab = download(lock['webview2'], cache)
     with tempfile.TemporaryDirectory(prefix='qa-webview2-') as temp:
         subprocess.run(['expand.exe', str(cab), '-F:*', temp], check=True)
@@ -138,6 +143,8 @@ def stage(out: Path, cache: Path):
     manifest = {'schema_version': 1, 'platform': 'win32', 'architecture': 'x64',
                 'runtime_lock_sha256': sha(LOCK), 'files': files,
                 'real_reference_validation': 'not run; no customer documents uploaded',
+                'external_distribution': lock['external_distribution'],
+                'missing_source_archives': lock['wmf']['missing_sources'],
                 'libreoffice': 'not included; Windows font isolation unverified'}
     (out / 'resources-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     print(json.dumps({'files': len(files), 'bytes': sum(v['bytes'] for v in files)}))

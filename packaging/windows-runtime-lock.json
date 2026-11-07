@@ -6,7 +6,13 @@
     "filename": "Microsoft.WebView2.FixedVersionRuntime.157.0.4341.42.x64.cab",
     "url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/b7b22a57-b321-483e-9855-d260b076f1a7/Microsoft.WebView2.FixedVersionRuntime.157.0.4341.42.x64.cab",
     "sha256": "cedaf8f3d12202c8803bdbae727b01c1be34540b78e8f0a10c6b401c2a8be97d",
-    "license_status": "Microsoft fixed-runtime EULA acquisition pending; internal validation candidate only"
+    "license_status": "official fixed-runtime terms bundled; downstream distribution agreement remains required",
+    "license": {
+      "source_url": "https://developer.microsoft.com/microsoft-edge/api/eula/webview2?locale=en-us&fixed=true",
+      "api_response_sha256": "daa1df73ee8b4dc727f8de4824230cc3a1e71d2cb95272d55ed75ec6d2064308",
+      "path": "packaging/licenses/Microsoft-WebView2-Fixed.html",
+      "sha256": "2db7686970ebe1c8bc23fba788506aaab5d4d857d285f83d77dc48dc00ef4dc5"
+    }
   },
   "wmf": {
     "root_package": "mingw-w64-ucrt-x86_64-libwmf",
@@ -230,12 +236,6 @@
         "bytes": 645162
       },
       {
-        "filename": "mingw-w64-winpthreads-14.0.0.r598.ge3d18511f-1.src.tar.zst",
-        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-winpthreads-14.0.0.r598.ge3d18511f-1.src.tar.zst",
-        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "bytes": 0
-      },
-      {
         "filename": "mingw-w64-zlib-1.4-2.src.tar.zst",
         "url": "https://repo.msys2.org/mingw/sources/mingw-w64-zlib-1.4-2.src.tar.zst",
         "sha256": "28415621a0f6c16bc20b0ce50cd1ae3632dd9f27bdc5776ab3ec18e8d2f00dcd",
@@ -302,10 +302,15 @@
         "name": "mingw-w64-pcre2",
         "url": "https://repo.msys2.org/mingw/sources/mingw-w64-pcre2-10.49-1.src.tar.zst",
         "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-winpthreads-14.0.0.r598.ge3d18511f-1.src.tar.zst",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-winpthreads-14.0.0.r598.ge3d18511f-1.src.tar.zst",
+        "status": "source download incomplete; external redistribution blocked"
       }
     ]
   },
-  "external_distribution": "blocked until EULA and source closure complete",
+  "external_distribution": "blocked until corresponding source closure and downstream WebView2 distribution terms complete",
   "optional_libreoffice": {
     "enabled": false,
     "reason": "Windows font isolation and visual fidelity unverified"
