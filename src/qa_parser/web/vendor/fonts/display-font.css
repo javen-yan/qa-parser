@@ -1,0 +1,3 @@
+@font-face{font-family:'QA Formula Unicode';src:url(NotoSansCJKsc-Regular.otf) format('opentype');font-style:normal;font-weight:400;font-display:block}
+.katex{font-family:KaTeX_Main,'QA Formula Unicode',serif}
+.katex .cjk_fallback{font-family:'QA Formula Unicode'}

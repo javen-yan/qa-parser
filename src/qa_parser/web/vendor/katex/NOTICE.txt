@@ -1,0 +1,4 @@
+KaTeX 0.19.1 (MIT). Source: https://github.com/KaTeX/KaTeX
+Pinned npm archive: katex-0.19.1.tgz
+SHA256: 24da5a599eb2fcede2e270b99a6ff48bca816beecc95feeb84e8cccbd1bb34fd
+Local CSS retains WOFF2 fonts only. JS is unchanged.

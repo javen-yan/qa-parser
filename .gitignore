@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+outputs/
+output/
+.playwright-cli/
+.DS_Store
+# Private customer corpus and extracted original formula previews: local only.
+/reference/
+/tests/fixtures/original-wmf/
+# Downloaded Windows runtimes are build inputs, never repository contents.
+/.runtime-cache/
+*.log

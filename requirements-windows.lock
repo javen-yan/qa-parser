@@ -1,0 +1,18 @@
+# Windows x64 / CPython 3.13.3. No macOS wheels or tools.
+-r requirements-dev.lock
+altgraph==0.17.5
+bottle==0.13.4
+proxy_tools==0.1.0
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.9
+pywebview==6.2.1
+pythonnet==3.2.1
+clr_loader==0.3.1
+cffi==2.0.0
+pycparser==2.23
+pefile==2024.8.26
+pywin32-ctypes==0.2.3
+colorama==0.4.6
+typing_extensions==4.16.0
+# Build-time archive decoder; never used to fetch anything on client launch.
+zstandard==0.25.0

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<title>题库转换</title>
+<rect x="96" y="96" width="832" height="832" rx="186" fill="#4365de"/>
+<path d="M330 224H582L704 346V738Q704 774 668 774H330Q294 774 294 738V260Q294 224 330 224Z" fill="#fff"/>
+<path d="M582 224V318Q582 346 610 346H704Z" fill="#c9d4fb"/>
+<path d="M374 426H604M374 502H604M374 578H510" stroke="#a6b7ed" stroke-width="28" stroke-linecap="round"/>
+<circle cx="688" cy="698" r="125" fill="#304ab0" stroke="#4365de" stroke-width="18"/>
+<path d="M623 698H753M705 650L753 698L705 746" fill="none" stroke="#fff" stroke-width="27" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

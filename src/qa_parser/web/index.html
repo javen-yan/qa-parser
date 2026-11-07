@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="qa-token" content="__QA_TOKEN__">
+  <title>题库转换</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233e5fd4'/%3E%3Ctext x='16' y='23' text-anchor='middle' font-size='22' fill='white'%3E题%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="/vendor/fonts/display-font.css">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/vendor/katex/katex.min.js" defer></script>
+  <script src="/font-coverage.js" defer></script>
+  <script src="/math-preview.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="app-header"><div class="header-inner"><div class="brand"><span class="brand-mark" aria-hidden="true">题</span><span>题库转换</span></div><div class="header-actions"><span class="local-note">本地处理</span><button id="shutdown" type="button" class="button quiet-button">退出工具</button></div></div></header>
+  <main class="shell">
+    <div class="page-heading"><h1>Word 题库转换</h1><p>添加文档，批量生成 Excel 与配套图片。</p></div>
+    <div id="error" class="error-banner" role="alert" hidden></div>
+    <section class="workspace files-section" aria-labelledby="files-title">
+      <section id="batch-summary" class="batch-summary" aria-live="polite" hidden>
+        <div class="summary-heading"><span id="summary-symbol" class="summary-symbol" aria-hidden="true">✓</span><div class="summary-copy"><h2 id="summary-title"></h2><div id="summary-counts" class="summary-counts" hidden><span><strong id="exported-count">0</strong> 题已导出</span><span id="omitted-stat"><strong id="omitted-count">0</strong> 题未导出</span><span id="failed-stat"><strong id="failed-count">0</strong> 份文件失败</span></div></div><span id="progress-text"></span></div>
+        <progress id="progress" max="1" value="0" aria-label="文件处理进度"></progress><p id="summary-message"></p>
+      </section>
+      <div class="workspace-toolbar"><div class="list-title"><h2 id="files-title">文档</h2><span class="count" id="file-count">0 份</span></div>
+        <div id="setup-fields" class="mode-section"><fieldset id="modes" class="mode-group"><legend class="sr-only">选择处理方式</legend><label class="mode-option"><input type="radio" name="mode" value="auto" checked><span>自动识别</span></label><label class="mode-option"><input type="radio" name="mode" value="choice"><span>选择题</span></label><label class="mode-option"><input type="radio" name="mode" value="blank"><span>填空 / 考点</span></label></fieldset></div>
+        <div id="completed-mode" class="completed-mode" hidden><strong id="completed-mode-value"></strong></div>
+        <div class="file-actions"><button id="clear" class="button quiet-button" type="button" hidden>清空</button><button id="add" class="button secondary" type="button"><span aria-hidden="true">＋</span> 添加文档</button><input id="file-input" type="file" accept=".docx" multiple hidden></div>
+      </div>
+      <p class="mode-note" id="mode-note">支持混合添加选择题和填空题文档。</p>
+      <div class="document-space">
+        <div id="drop-zone" class="drop-zone"><div class="document-art" aria-hidden="true"><div class="paper-back"></div><div class="paper-front"><span>W</span><i></i><i></i></div><span class="document-plus">＋</span></div><h3>把 Word 拖到这里</h3><p>支持一次添加多份文档</p><button id="empty-add" type="button" class="button primary">选择 Word 文件</button><span class="drop-note">支持 .docx 格式</span></div>
+        <div id="file-list-wrap" hidden><div id="result-filters" class="result-filters" aria-label="筛选转换结果" hidden><button id="filter-all" class="filter-button" type="button" aria-pressed="true">全部文件</button><button id="filter-attention" class="filter-button" type="button" aria-pressed="false">有问题的文件</button></div><ul id="file-list" class="file-list"></ul><p id="filter-empty" class="filter-empty" hidden>没有需要查看的问题。</p></div>
+        <p id="upload-status" class="upload-status" aria-live="polite" hidden></p>
+      </div>
+      <div class="action-bar"><section class="output-section" aria-label="保存位置"><span class="output-label">保存位置</span><div class="output-line"><details class="output-details"><summary><span class="folder-symbol" aria-hidden="true"></span><span id="output-path" class="output-path">正在读取…</span></summary><p id="output-full-path"></p></details><button id="choose-output" class="button text-button" type="button">更改</button></div></section><div class="primary-actions"><p id="action-note" class="action-note">添加文件后即可转换</p><div class="action-buttons"><button id="continue" class="button secondary" type="button" hidden>继续转换</button><button id="start" class="button primary" type="button" disabled>开始转换</button><button id="open-diagnostics" class="button text-button" type="button" hidden>诊断信息</button><button id="open-batch" class="button primary" type="button" hidden>打开结果包</button></div></div></div>
+    </section>
+    <footer><span>文件只在本机处理</span><span>支持 .docx</span></footer>
+  </main>
+  <dialog id="folder-dialog" aria-labelledby="folder-title">
+    <div class="report-heading"><h2 id="folder-title">选择保存位置</h2><button id="cancel-folder" class="button text-button" type="button" autofocus>取消</button></div>
+    <div id="folder-shortcuts" class="folder-shortcuts" aria-label="常用位置"></div>
+    <div class="folder-location"><button id="folder-up" class="button secondary" type="button">上一级</button><span id="folder-path" aria-live="polite"></span></div>
+    <p id="folder-error" class="folder-error" role="alert" hidden></p>
+    <ul id="folder-list" class="folder-list" aria-label="子文件夹"></ul>
+    <p id="folder-empty" class="quiet-note" hidden>此位置没有子文件夹，可直接选择此位置。</p>
+    <div class="folder-footer"><span class="quiet-note">转换时会在此位置创建新的结果文件夹。</span><button id="select-folder" class="button primary" type="button">选择此位置</button></div>
+  </dialog>
+  <dialog id="report-dialog" aria-labelledby="report-title">
+    <div class="report-heading"><h2 id="report-title">结果说明</h2><button id="close-report" class="button secondary" type="button" autofocus>关闭</button></div>
+    <div class="report-subhead"><p id="report-name" class="report-name"></p><button id="report-problems" class="button text-button" type="button">查看未导出题目</button></div>
+    <div id="report-text" class="report-text" tabindex="0" role="region" aria-label="结果说明内容"></div>
+  </dialog>
+  <dialog id="problems-dialog" class="problems-dialog" aria-labelledby="problems-title">
+    <div class="report-heading"><h2 id="problems-title">未导出题目</h2><button id="close-problems" class="button secondary" type="button" autofocus>关闭</button></div>
+    <div class="problems-source-line"><p id="problems-source" class="problems-source"></p><button id="problems-open-source" class="button text-button" type="button">打开源 Word</button></div>
+    <p class="problems-notice">以下题目未导出。选择题号查看原因。</p>
+    <p id="problems-error" class="folder-error" role="alert" hidden></p>
+    <div id="problems-empty" class="problems-empty" role="status" hidden></div>
+    <div id="problems-layout" class="problems-layout" hidden><nav class="problem-navigation" aria-label="未导出题号"><p id="problems-count" class="problem-count"></p><div id="problem-question-list" class="problem-question-list"></div></nav><section id="problem-detail" class="problem-detail" tabindex="0" aria-label="题目内容与原因"></section></div>
+  </dialog>
+</body>
+</html>

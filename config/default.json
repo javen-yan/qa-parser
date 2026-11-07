@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "contract_status": "unverified",
+  "choice_columns": [
+    "ID",
+    "类型",
+    "困难程度",
+    "题目",
+    "选择项",
+    "答案",
+    "解析",
+    "sid",
+    "optionA",
+    "optionB",
+    "optionC",
+    "optionD",
+    "title",
+    "questionType"
+  ],
+  "blank_columns": [
+    "ID",
+    "考点",
+    "题目",
+    "答案"
+  ],
+  "choice_type": "单选题",
+  "question_type": "",
+  "formula_delimiter": "$$",
+  "formula_fallback": "image",
+  "image_reference": "请参考 {filename}",
+  "difficulty_levels": [
+    "低",
+    "中",
+    "高"
+  ],
+  "difficulty_seed": "qa-parser-v1",
+  "field_defaults": {},
+  "column_fields": {},
+  "required_columns": [],
+  "required_fields": {
+    "choice": [
+      "stem",
+      "options",
+      "answer"
+    ],
+    "blank": [
+      "stem",
+      "answer"
+    ]
+  },
+  "supported_image_extensions": [
+    "png",
+    "jpg",
+    "jpeg",
+    "gif",
+    "bmp",
+    "tif",
+    "tiff"
+  ]
+}

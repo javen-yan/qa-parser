@@ -1,0 +1,37 @@
+题库转换 — bundled third-party software
+
+The application uses Python, pywebview, PyObjC, lxml, olefile, omml2latex,
+XlsxWriter, Pillow, bottle, proxy_tools and typing_extensions. Original license
+texts supplied by their distributions are retained in this directory; the
+build manifest records versions. PyInstaller's bootloader has an exception
+permitting bundled applications to retain their own license, subject to the
+licenses of dependencies. It does not override any dependency's conditions.
+
+The isolated wmf2gd helper and libwmf libraries are from libwmf 0.2.13 (GPL /
+LGPL / GD components). Their exact upstream source archive, Homebrew build
+recipe and macOS patch are included under libwmf/sources. This package modifies
+Mach-O dynamic-library references for relocation and applies local ad-hoc code
+signatures; source algorithm code is unchanged. These files remain replaceable
+in wmf/bin. Original copyrights, source and licenses are preserved. The
+Nimbus / URW font license and original font sources are included as part of
+the libwmf source archive. Font files themselves are unmodified; fontmap paths
+are rewritten at runtime into a writable temporary directory.
+
+Portions of this software are copyright (c) The FreeType Project
+(www.freetype.org). All rights reserved. FreeType is included with its FTL
+license and notices; its exact source archive is also preserved.
+
+This software is based in part on the work of the Independent JPEG Group.
+libjpeg-turbo's IJG and BSD notices are included in jpeg-turbo/README.ijg and
+jpeg-turbo/LICENSE.md. libpng's license is included in libpng/LICENSE.
+
+macOS system WebKit, Cocoa, system libraries and installed system fonts are
+used from the operating system and are not redistributed by this package.
+No MathType or Office program, proprietary MathType font, Node, external
+browser, or customer-side development tool installation is required.
+
+Release status: locally built and ad-hoc signed. Apple Developer ID signing,
+notarization, customer-machine policy and Windows portability remain separate
+acceptance items. Review the exact bundled dependency notices before external
+release; this inventory is not a substitute for release-specific license
+review, particularly GPL/LGPL source and replacement requirements.

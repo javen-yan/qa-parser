@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "architecture": "x64",
+  "webview2": {
+    "version": "157.0.4341.42",
+    "filename": "Microsoft.WebView2.FixedVersionRuntime.157.0.4341.42.x64.cab",
+    "url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/b7b22a57-b321-483e-9855-d260b076f1a7/Microsoft.WebView2.FixedVersionRuntime.157.0.4341.42.x64.cab",
+    "sha256": "cedaf8f3d12202c8803bdbae727b01c1be34540b78e8f0a10c6b401c2a8be97d",
+    "license_status": "Microsoft fixed-runtime EULA acquisition pending; internal validation candidate only"
+  },
+  "wmf": {
+    "root_package": "mingw-w64-ucrt-x86_64-libwmf",
+    "files": {
+      "wmf2gd.exe": "mingw-w64-ucrt-x86_64-libwmf",
+      "libwmflite-0-2-7.dll": "mingw-w64-ucrt-x86_64-libwmf",
+      "libwmf-0-2-7.dll": "mingw-w64-ucrt-x86_64-libwmf",
+      "zlib1.dll": "mingw-w64-ucrt-x86_64-zlib",
+      "libxml2-16.dll": "mingw-w64-ucrt-x86_64-libxml2",
+      "libiconv-2.dll": "mingw-w64-ucrt-x86_64-libiconv",
+      "libpng16-16.dll": "mingw-w64-ucrt-x86_64-libpng",
+      "libjpeg-8.dll": "mingw-w64-ucrt-x86_64-libjpeg-turbo",
+      "libfreetype-6.dll": "mingw-w64-ucrt-x86_64-freetype",
+      "libharfbuzz-0.dll": "mingw-w64-ucrt-x86_64-harfbuzz",
+      "libgraphite2.dll": "mingw-w64-ucrt-x86_64-graphite2",
+      "libstdc++-6.dll": "mingw-w64-ucrt-x86_64-libstdc++",
+      "libwinpthread-1.dll": "mingw-w64-ucrt-x86_64-libwinpthread",
+      "libgcc_s_seh-1.dll": "mingw-w64-ucrt-x86_64-libgcc",
+      "libglib-2.0-0.dll": "mingw-w64-ucrt-x86_64-glib2",
+      "libpcre2-8-0.dll": "mingw-w64-ucrt-x86_64-pcre2",
+      "libintl-8.dll": "mingw-w64-ucrt-x86_64-gettext-runtime",
+      "libbz2-1.dll": "mingw-w64-ucrt-x86_64-bzip2",
+      "libbrotlidec.dll": "mingw-w64-ucrt-x86_64-brotli",
+      "libbrotlicommon.dll": "mingw-w64-ucrt-x86_64-brotli"
+    },
+    "packages": [
+      {
+        "name": "mingw-w64-ucrt-x86_64-brotli",
+        "version": "1.2.1-1",
+        "filename": "mingw-w64-ucrt-x86_64-brotli-1.2.1-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-brotli-1.2.1-1-any.pkg.tar.zst",
+        "sha256": "e3257d4303fc0aca4c64f702d4c8cd766a321351c5e61927631c30bfdf2e7536",
+        "license": [
+          "spdx:MIT"
+        ],
+        "source_base": "mingw-w64-brotli"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-bzip2",
+        "version": "1.0.8-4",
+        "filename": "mingw-w64-ucrt-x86_64-bzip2-1.0.8-4-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-bzip2-1.0.8-4-any.pkg.tar.zst",
+        "sha256": "f03a2174034ddd2d96cecd34f617c5f8e2ef86c812b8d2bb3b8875257f2c8bfa",
+        "license": [
+          "custom"
+        ],
+        "source_base": "mingw-w64-bzip2"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-freetype",
+        "version": "2.15.0-1",
+        "filename": "mingw-w64-ucrt-x86_64-freetype-2.15.0-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-freetype-2.15.0-1-any.pkg.tar.zst",
+        "sha256": "a9a691f71d1a553099c54ca666e611abfb2b4ff08dae24f2a5af72e22a7e5feb",
+        "license": [
+          "spdx:GPL-2.0-or-later OR FTL"
+        ],
+        "source_base": "mingw-w64-freetype"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-gettext-runtime",
+        "version": "1.0-1",
+        "filename": "mingw-w64-ucrt-x86_64-gettext-runtime-1.0-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gettext-runtime-1.0-1-any.pkg.tar.zst",
+        "sha256": "ba693dda4ac375af76ce481ff3a6e7481286546cc7dc6d56c7021dae34084157",
+        "license": [
+          "spdx:GPL-3.0-or-later AND LGPL-2.1-or-later"
+        ],
+        "source_base": "mingw-w64-gettext"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-glib2",
+        "version": "2.90.1-1",
+        "filename": "mingw-w64-ucrt-x86_64-glib2-2.90.1-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-glib2-2.90.1-1-any.pkg.tar.zst",
+        "sha256": "9a7826349279bcca0c935b01880d812be9de9609aef2205be68fd7a6128c1695",
+        "license": [
+          "spdx:LGPL-2.1-or-later"
+        ],
+        "source_base": "mingw-w64-glib2"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-graphite2",
+        "version": "1.3.15-1",
+        "filename": "mingw-w64-ucrt-x86_64-graphite2-1.3.15-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-graphite2-1.3.15-1-any.pkg.tar.zst",
+        "sha256": "34ca1f88bff10ef182a6b1c8e5622d5029f13b05748e361af13b552b422ea849",
+        "license": [
+          "spdx:LGPL-2.1-or-later"
+        ],
+        "source_base": "mingw-w64-graphite2"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-harfbuzz",
+        "version": "15.1.0-1",
+        "filename": "mingw-w64-ucrt-x86_64-harfbuzz-15.1.0-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-harfbuzz-15.1.0-1-any.pkg.tar.zst",
+        "sha256": "92b72b54ad320508b700e50f48ac6386f056f4dd1cc9ad77696bc3bf036e67f8",
+        "license": [
+          "spdx:MIT"
+        ],
+        "source_base": "mingw-w64-harfbuzz"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-libgcc",
+        "version": "16.2.0-6",
+        "filename": "mingw-w64-ucrt-x86_64-libgcc-16.2.0-6-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libgcc-16.2.0-6-any.pkg.tar.zst",
+        "sha256": "80b2497f019977dd9528b1abc8621b1328a0115ab1f724047ccbb56bf323f11d",
+        "license": [
+          "spdx:GPL-3.0-or-later WITH GCC-exception-3.1 AND GFDL-1.3-or-later"
+        ],
+        "source_base": "mingw-w64-gcc"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-libiconv",
+        "version": "1.19.1-1",
+        "filename": "mingw-w64-ucrt-x86_64-libiconv-1.19.1-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libiconv-1.19.1-1-any.pkg.tar.zst",
+        "sha256": "8a45dc317a285a036bddd79e01505d67b79e44ff49fc3f6e7177a5ea98d098cf",
+        "license": [
+          "spdx:LGPL-2.1-or-later",
+          "documentation:spdx:GPL-3.0-or-later"
+        ],
+        "source_base": "mingw-w64-libiconv"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-libjpeg-turbo",
+        "version": "3.2.1-1",
+        "filename": "mingw-w64-ucrt-x86_64-libjpeg-turbo-3.2.1-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libjpeg-turbo-3.2.1-1-any.pkg.tar.zst",
+        "sha256": "8eed77c1e0d6de7f8822687f7b1dfa32cda09394806ef67b23399e63de1a92a6",
+        "license": [
+          "custom:BSD-like"
+        ],
+        "source_base": "mingw-w64-libjpeg-turbo"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-libpng",
+        "version": "1.6.59-2",
+        "filename": "mingw-w64-ucrt-x86_64-libpng-1.6.59-2-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libpng-1.6.59-2-any.pkg.tar.zst",
+        "sha256": "6cc296f5029220e1a226c4bc50294212b20ab8fcabeb00b5a002667f4a882edc",
+        "license": [
+          "custom"
+        ],
+        "source_base": "mingw-w64-libpng"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-libstdc++",
+        "version": "16.2.0-6",
+        "filename": "mingw-w64-ucrt-x86_64-libstdc++-16.2.0-6-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libstdc++-16.2.0-6-any.pkg.tar.zst",
+        "sha256": "33c5e58a85a538cf843a8672991cce591f0231d66da3b66a57629712d64be17f",
+        "license": [
+          "spdx:GPL-3.0-or-later WITH GCC-exception-3.1 AND GFDL-1.3-or-later"
+        ],
+        "source_base": "mingw-w64-gcc"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-libwinpthread",
+        "version": "14.0.0.r598.ge3d18511f-1",
+        "filename": "mingw-w64-ucrt-x86_64-libwinpthread-14.0.0.r598.ge3d18511f-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libwinpthread-14.0.0.r598.ge3d18511f-1-any.pkg.tar.zst",
+        "sha256": "c35d6be83d141c8cfbb61f1637dd4b53aac8f5562d766aa26d0741c40bad4e4d",
+        "license": [
+          "spdx:MIT AND BSD-3-Clause"
+        ],
+        "source_base": "mingw-w64-winpthreads"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-libwmf",
+        "version": "0.2.16-1",
+        "filename": "mingw-w64-ucrt-x86_64-libwmf-0.2.16-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libwmf-0.2.16-1-any.pkg.tar.zst",
+        "sha256": "bf2e5d857dd64c071b6fa72aa84b9694b079907c2b9482865b56d7c96a554b1e",
+        "license": [
+          "spdx:LGPL-2.0-or-later AND GPL-2.0-or-later"
+        ],
+        "source_base": "mingw-w64-libwmf"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-libxml2",
+        "version": "2.15.4-3",
+        "filename": "mingw-w64-ucrt-x86_64-libxml2-2.15.4-3-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libxml2-2.15.4-3-any.pkg.tar.zst",
+        "sha256": "e774c85139c004ce9b4085474d6b3450526c718d2e8c555a87e47adc11f376b1",
+        "license": [
+          "spdx:MIT"
+        ],
+        "source_base": "mingw-w64-libxml2"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-pcre2",
+        "version": "10.49-1",
+        "filename": "mingw-w64-ucrt-x86_64-pcre2-10.49-1-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-pcre2-10.49-1-any.pkg.tar.zst",
+        "sha256": "63172179db724ac71e2439a7981134c1bcab8049bdddfd349b32b8f76ed52d1e",
+        "license": [
+          "spdx:BSD-3-Clause"
+        ],
+        "source_base": "mingw-w64-pcre2"
+      },
+      {
+        "name": "mingw-w64-ucrt-x86_64-zlib",
+        "version": "1.4-2",
+        "filename": "mingw-w64-ucrt-x86_64-zlib-1.4-2-any.pkg.tar.zst",
+        "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-zlib-1.4-2-any.pkg.tar.zst",
+        "sha256": "172541cf5e2391a402f092104988699b0163129d22be1d6b4b201bfb84af6fcf",
+        "license": [
+          "spdx:Zlib"
+        ],
+        "source_base": "mingw-w64-zlib"
+      }
+    ],
+    "sources": [
+      {
+        "filename": "mingw-w64-brotli-1.2.1-1.src.tar.zst",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-brotli-1.2.1-1.src.tar.zst",
+        "sha256": "3dfc69b88a111ef4809928e81d4cb650ea9c7ba5da4ebd1bf28d6effdeeb6bd6",
+        "bytes": 645162
+      },
+      {
+        "filename": "mingw-w64-winpthreads-14.0.0.r598.ge3d18511f-1.src.tar.zst",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-winpthreads-14.0.0.r598.ge3d18511f-1.src.tar.zst",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "filename": "mingw-w64-zlib-1.4-2.src.tar.zst",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-zlib-1.4-2.src.tar.zst",
+        "sha256": "28415621a0f6c16bc20b0ce50cd1ae3632dd9f27bdc5776ab3ec18e8d2f00dcd",
+        "bytes": 1324155
+      }
+    ],
+    "missing_sources": [
+      {
+        "name": "mingw-w64-bzip2",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-bzip2-1.0.8-4.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-freetype",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-freetype-2.15.0-1.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-gettext",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-gettext-1.0-1.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-glib2",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-glib2-2.90.1-1.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-graphite2",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-graphite2-1.3.15-1.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-harfbuzz",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-harfbuzz-15.1.0-1.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-libiconv",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-libiconv-1.19.1-1.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-libjpeg-turbo",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-libjpeg-turbo-3.2.1-1.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-libpng",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-libpng-1.6.59-2.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-libwmf",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-libwmf-0.2.16-1.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-libxml2",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-libxml2-2.15.4-3.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      },
+      {
+        "name": "mingw-w64-pcre2",
+        "url": "https://repo.msys2.org/mingw/sources/mingw-w64-pcre2-10.49-1.src.tar.zst",
+        "status": "not yet downloaded and pinned; external redistribution blocked"
+      }
+    ]
+  },
+  "external_distribution": "blocked until EULA and source closure complete",
+  "optional_libreoffice": {
+    "enabled": false,
+    "reason": "Windows font isolation and visual fidelity unverified"
+  }
+}

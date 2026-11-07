@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qa-parser"
+version = "0.3.0"
+description = "Offline DOCX question extraction and reviewable Excel export"
+requires-python = ">=3.11"
+dependencies = ["lxml>=5,<7", "olefile==0.47", "omml2latex==0.1.1", "XlsxWriter>=3.2,<4", "Pillow>=11,<13"]
+
+[project.optional-dependencies]
+desktop = ["pywebview==6.2.1"]
+package = ["pyinstaller==6.22.3"]
+test = ["pytest>=8,<9", "build>=1,<2"]
+
+[project.scripts]
+qa-parser = "qa_parser.cli:main"
+qa-parser-desktop = "qa_parser.desktop_window:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"qa_parser" = ["web/*.html", "web/*.js", "web/*.css", "web/vendor/katex/*", "web/vendor/katex/fonts/*.woff2", "web/vendor/fonts/*"]
+"qa_parser.vendor" = ["*.LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

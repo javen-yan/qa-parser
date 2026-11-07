@@ -1,0 +1,88 @@
+name: Windows portable candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-portable-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PYTHONUTF8: '1'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13.3'
+          architecture: x64
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Install build-only dependencies
+        run: |
+          python -m pip install -r requirements-windows.lock
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency install failed' }
+          python -m pip install --no-build-isolation --no-deps -e .
+          if ($LASTEXITCODE -ne 0) { throw 'Project install failed' }
+      - name: Public synthetic regression (private corpus excluded explicitly)
+        run: |
+          python scripts/check_public_tests.py --report build/windows-public-tests.json --junitxml build/windows-public-tests.xml
+          if ($LASTEXITCODE -ne 0) { throw 'Regression failed' }
+          node tests/test_math_preview.js
+          if ($LASTEXITCODE -ne 0) { throw 'Math display regression failed' }
+      - name: Build native portable folder with pinned offline resources
+        run: ./packaging/windows-build.ps1
+      - name: Frozen CLI, native window and relocated-resource checks
+        run: |
+          python scripts/windows_smoke.py --exe 'dist/windows/题库转换/题库转换.exe' --out 'build/中文 Windows smoke' --gui
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen application smoke failed' }
+      - name: Create portable ZIP only after successful smoke
+        run: |
+          Copy-Item 'build/中文 Windows smoke/portable-candidate.zip' 'dist/qa-parser-windows-x64-candidate.zip'
+          Get-FileHash 'dist/qa-parser-windows-x64-candidate.zip' -Algorithm SHA256 | Format-List | Out-File 'build/windows-zip-sha256.txt'
+          @'
+          Windows Server 2022 x64 runner candidate. Synthetic tests only.
+          Real 9-document corpus: NOT UPLOADED / NOT VERIFIED on Windows.
+          Customer Windows 11 offline/non-admin/read-only-folder acceptance: pending.
+          Original-WMF LibreOffice extension: not enabled on Windows.
+          '@ | Out-File 'build/windows-acceptance-scope.txt' -Encoding utf8
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: success()
+        with:
+          name: qa-parser-windows-x64-candidate
+          path: dist/qa-parser-windows-x64-candidate.zip
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: windows-build-evidence
+          path: |
+            build/windows-public-tests.json
+            build/windows-public-tests.xml
+            build/windows/resources-manifest.json
+            build/windows/build-manifest.json
+            build/windows-zip-sha256.txt
+            build/windows-acceptance-scope.txt
+            build/中文 Windows smoke/smoke-report.json
+            build/中文 Windows smoke/native-window.json
+            build/中文 Windows smoke/native-wmf.json
+            build/中文 Windows smoke/*.log
+            build/中文 Windows smoke/development/*.log
+            build/中文 Windows smoke/frozen/*.log
+          if-no-files-found: warn
+          retention-days: 14

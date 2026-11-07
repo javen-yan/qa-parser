@@ -1,0 +1,35 @@
+Windows x64 internal validation candidate — not a customer release
+
+WebView2 Fixed Runtime 157.0.4341.42 x64 is downloaded directly from Microsoft,
+SHA256 verified, copied unmodified as a whole, including embedded third-party
+notice tooling and licenses. Microsoft runtime terms apply:
+https://developer.microsoft.com/microsoft-edge/webview2/
+https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution
+No customer first-launch download or installed Evergreen dependency is used.
+WebView2 may collect diagnostic information. Microsoft Defender SmartScreen, when
+enabled, collects and sends end-user information to Microsoft as described at
+https://aka.ms/privacy and
+https://learn.microsoft.com/microsoft-edge/privacy-whitepaper#smartscreen .
+External redistribution requires appropriate end-user terms and notices. The
+customer redistribution terms have not been approved by this build process.
+
+libwmf 0.2.16 is a separate native command-line renderer from MSYS2 UCRT64.
+Package licenses and .PKGINFO/.BUILDINFO are retained under _internal/licenses.
+Binary and source provenance is recorded in windows-runtime-lock.json.
+The libwmf program and linked libraries include GPL/LGPL components; their
+complete corresponding sources must accompany any external distribution or be
+made available under applicable license terms. Any incomplete source archive
+pins are an explicit external-distribution blocker, not runtime validation.
+GCC runtime libraries include the GCC Runtime Library Exception 3.1.
+No macOS native files are used in this Windows build.
+
+Python package licenses/versions are retained under _internal/licenses/python.
+Noto CJK (SIL OFL) and KaTeX (MIT) notices remain with the application web assets.
+The Windows .NET Framework used by pythonnet is an OS prerequisite, not a
+bundled development SDK. Fixed WebView2 security updates require rebuilding and
+redistributing the application runtime bundle.
+
+Optional LibreOffice Windows renderer is NOT INCLUDED. Mac fontconfig isolation
+does not prove equivalent Windows font rendering. Official Windows MSI and
+checksums: https://www.libreoffice.org/download/download-libreoffice/
+Licenses: https://www.libreoffice.org/about-us/licenses/
