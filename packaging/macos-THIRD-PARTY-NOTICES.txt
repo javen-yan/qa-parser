@@ -1,0 +1,18 @@
+Native macOS cloud light candidate (ARM64 or Intel; separate builds)
+
+The WMF renderer is built from the pinned libwmf0.2.13 source and documented
+macOS patch; FreeType2.13.3, libpng1.6.48 and libjpeg-turbo3.1.0 are built from
+pinned upstream sources on the same architecture. The complete source archives,
+patch, notices and build provenance are retained under licenses/sources.
+libwmf includes GPL/LGPL/GD components. FreeType uses FTL notices; libpng uses
+libpng-2.0; JPEG components retain IJG/Zlib/BSD notices. See the actual sources
+and individual notices for terms. No current Homebrew binaries are copied.
+
+CPython and Python package notices are under licenses/python. Noto CJK OFL and
+KaTeX MIT notices remain with their unmodified web assets. OS WebKit, expat, zlib
+and macOS frameworks are system prerequisites and are not copied into the app.
+The cloud package does not include the optional LibreOffice original-WMF engine.
+
+Ad-hoc signing is for bundle integrity, not Apple Developer ID or notarization.
+Cloud synthetic validation does not certify private900-question output or a
+customer machine. Customer distribution requires target-environment verification.

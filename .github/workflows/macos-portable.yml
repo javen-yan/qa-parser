@@ -1,0 +1,42 @@
+name: macOS native portable candidates
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-portable-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            architecture: arm64
+            python_architecture: arm64
+          - runner: macos-15-intel
+            architecture: x86_64
+            python_architecture: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: '1'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      PIP_CACHE_DIR: ${{ github.workspace }}/.cache/pip
+      MACOSX_DEPLOYMENT_TARGET: '15.0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-macos
+        with:
+          architecture: ${{ matrix.architecture }}

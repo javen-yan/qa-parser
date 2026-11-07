@@ -15,13 +15,15 @@
 
 原图完整版只对审计通过的原始WMF进行回放，不猜测未知公式。4709个LaTeX公式的显示构造已检查，不能等同于所有公式逐项人工语义认证。两个Mac包为本机验证的独立应用，其他电脑、签名公证及客户安全策略仍需实际验证。
 
-## Windows 云端构建与下载
+## 云端构建与下载（Windows / Mac双架构）
+
+Mac使用 [macOS native portable candidates 工作流](https://github.com/javen-yan/qa-parser/actions/workflows/macos-portable.yml)，分别在M系列ARM64和Intel x86_64原生构建。云端只提供轻量版，不能替代本地原图完整版900/900结论。架构、缓存及版本发布约定见[平台矩阵](docs/platform-matrix.md)。
 
 仓库的 [Windows portable candidate 工作流](https://github.com/javen-yan/qa-parser/actions/workflows/windows-portable.yml) 仅手动触发。在 Actions 中选择该工作流 → Run workflow。只有构建、合成回归、解压后冻结程序及原生窗口冒烟均通过，才上传 `qa-parser-windows-x64-candidate` artifact；证据另存 `windows-build-evidence`，保留14天。
 
 下载artifact，先解开GitHub外层归档，再完整解压其中的 `qa-parser-windows-x64-candidate.zip`，进入“题库转换”文件夹双击EXE。保留 `_internal` 及其子目录。固定版WebView2、WMF转换器、离线字体和Python运行环境均随包分发；不在首次启动时下载。任务及浏览器缓存写入用户LOCALAPPDATA，不写程序目录。
 
-**Windows包目前是候选构建。** CI运行环境是Windows Server 2022 x64；客户Windows11 x64的断网、非管理员、只读程序目录、安全软件及签名验收需分别记录。真实9份Word未上传，不能把合成测试通过写成Windows 900/900。Windows暂不启用Mac完整版的LibreOffice原图路径，复杂原图可能进入未导出清单。详见[Windows构建及验证说明](docs/windows-ci.md)。
+**各平台云端包目前是候选构建。** CI运行环境是Windows Server 2022 x64；客户Windows11 x64的断网、非管理员、只读程序目录、安全软件及签名验收需分别记录。真实9份Word未上传，不能把合成测试通过写成Windows 900/900。Windows暂不启用Mac完整版的LibreOffice原图路径，复杂原图可能进入未导出清单。详见[Windows构建及验证说明](docs/windows-ci.md)。
 
 ## 输出约定
 
@@ -58,7 +60,7 @@ Mac桌面依赖见`requirements-desktop.lock`，构建入口为`scripts/build_de
 
 本地临时产物整理与恢复方式见[归档说明](docs/local-artifacts.md)。
 
-构建时需联网获取依赖，运行时不下载。Windows原生来源、固定版本和SHA在`packaging/windows-runtime-lock.json`；下载、校验或资源缺失会让构建失败，不发布伪成功包。Python包锁定版本；网络失败可重新手动运行工作流。第三方许可见[依赖说明](THIRD_PARTY_NOTICES.md)及包内licenses。
+构建时需联网获取依赖，运行时不下载。Windows原生来源、固定版本和SHA在`packaging/windows-runtime-lock.json`；下载、校验或资源缺失会让构建失败，不发布伪成功包。Python包固定版本及官方包哈希；构建下载按OS/架构/锁文件缓存，命中仍校验，网络失败可重新手动运行工作流。第三方许可见[依赖说明](THIRD_PARTY_NOTICES.md)及包内licenses。
 
 CLI还提供`parse`、`validate`、`export`、`batch`和`config`。退出码：0完整成功、2部分失败/待复核、1执行或全部失败。Web调试入口`ui`保留，桌面默认不打开系统浏览器。
 
