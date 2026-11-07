@@ -46,7 +46,7 @@ def unpack_package(archive, target):
         with tarfile.open(fileobj=raw, mode='r|') as tar:
             for entry in tar:
                 name = PurePosixPath(entry.name)
-                if name.is_absolute() or '..' in name.parts:
+                if name.is_absolute() or '..' in name.parts or ':' in entry.name or '\\' in entry.name:
                     raise RuntimeError('Unsafe package path')
                 if not entry.isfile():
                     continue  # no links, devices or executables outside explicit copy set
@@ -142,6 +142,8 @@ def stage(out: Path, cache: Path):
              for p in sorted(out.rglob('*')) if p.is_file()]
     manifest = {'schema_version': 1, 'platform': 'win32', 'architecture': 'x64',
                 'runtime_lock_sha256': sha(LOCK), 'files': files,
+                'external_distribution': lock['external_distribution'],
+                'missing_corresponding_sources': lock['wmf']['missing_sources'],
                 'real_reference_validation': 'not run; no customer documents uploaded',
                 'external_distribution': lock['external_distribution'],
                 'missing_source_archives': lock['wmf']['missing_sources'],

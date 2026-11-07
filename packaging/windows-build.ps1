@@ -40,6 +40,18 @@ foreach ($Name in @('webview2','wmf','licenses')) {
     Copy-Item -Recurse (Join-Path $Resources $Name) (Join-Path $Internal $Name)
 }
 Copy-Item (Join-Path $Resources 'resources-manifest.json') $Internal
+Copy-Item (Join-Path $Resources 'resources-manifest.json') $BuildRoot
+$Manifest = @{
+    schema_version = 1
+    platform = 'win32'
+    architecture = 'x64'
+    source_commit = $env:GITHUB_SHA
+    runner_os = [Environment]::OSVersion.VersionString
+    python = (& python --version)
+    status = 'built; frozen execution checks pending'
+    real_reference = 'not uploaded; not tested'
+}
+$Manifest | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 (Join-Path $BuildRoot 'build-manifest.json')
 Copy-Item (Join-Path $PSScriptRoot 'WINDOWS-THIRD-PARTY-NOTICES.txt') $App
 @'
 题库转换 — Windows x64 云端验证候选

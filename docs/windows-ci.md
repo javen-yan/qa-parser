@@ -40,3 +40,11 @@ WebView2必须由包内`_internal/webview2`提供；缺少组件时报错，不�
 - [GitHub手动工作流](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
 - [GitHub官方artifact action](https://github.com/actions/upload-artifact)
 - [LibreOffice官方Windows分发](https://www.libreoffice.org/download/download-libreoffice/)
+
+## 本地准备状态（2026-11-07）
+
+Mac完整回归307项通过；公开合成检查228项通过、79项明确排除、无意外skip。六个旧中间目录已可逆归档，见`docs/local-artifacts.md`。
+
+首次HTTPS推送因gh OAuth缺少workflow权限被拒绝；随后通过GitHub SSH443及受限密钥尝试成功认证，使用已有SSH授权继续。Windows运行结果另行记录，不能将本地准备标为云端成功。
+
+原生依赖的12个对应源码归档仍待补齐，锁文件及包内通知明确限制外部分发。固定WebView2主许可已从微软官网API保存并校验。运行通过与再分发资料完整是两个独立条件。
