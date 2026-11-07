@@ -1,6 +1,7 @@
 """CLI exit codes: 0 success, 2 review/partial, 1 execution failure."""
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -90,6 +91,8 @@ def main(argv=None) -> int:
             return 1
         return 2 if report.get("quarantined") or report.get("review", 0) or report.get("document_issues") or report.get("partial") or report.get("omitted_questions") else 0
     except (Exception,) as exc:
+        if os.environ.get('QA_PARSER_CLI_LOG'):
+            traceback.print_exc(file=sys.stderr)
         if args.command == "run" and not args.json:
             message = "输出位置已存在，请选择新的输出位置。" if isinstance(exc, FileExistsError) else "无法读取输入或写入输出，请检查文件和保存位置。" if isinstance(exc, OSError) else "转换未能完成。"
             print("转换失败：" + message, file=sys.stderr)

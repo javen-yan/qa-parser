@@ -31,6 +31,12 @@ def configure_windows_runtime(webview) -> str | None:
 def _stdio_for_windowed_cli() -> None:
     # PyInstaller --windowed sets these to None on Windows, even when the
     # parent redirects handles. CLI evidence is persisted in its output files.
+    diagnostic = os.environ.get('QA_PARSER_CLI_LOG')
+    if diagnostic:
+        destination = Path(diagnostic)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        stream = destination.open('a', encoding='utf-8', buffering=1)
+        sys.stdout = sys.stderr = stream
     for name in ('stdout', 'stderr'):
         if getattr(sys, name) is None:
             setattr(sys, name, open(os.devnull, 'w', encoding='utf-8'))
@@ -71,8 +77,13 @@ def main(argv=None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == ['--cli']:
         _stdio_for_windowed_cli()
-        from .cli import main as cli_main
-        return cli_main(args[1:])
+        try:
+            from .cli import main as cli_main
+            return cli_main(args[1:])
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            return 1
     if len(args) == 3 and args[0] == '--runtime-smoke':
         from .formula_images import preview_to_png
         result = preview_to_png(Path(args[1]).read_bytes(), '.wmf')
@@ -94,7 +105,9 @@ def main(argv=None) -> int:
     # Never inherit a development cwd or depend on resources next to the app.
     process = subprocess.Popen(service_command(data), cwd=data, stdout=log, stderr=log,
                                start_new_session=os.name == 'posix',
-                               **({'creationflags': subprocess.CREATE_NO_WINDOW} if sys.platform == 'win32' else {}))
+                               **({'creationflags': subprocess.CREATE_NO_WINDOW,
+                                   'env': dict(os.environ, QA_PARSER_CLI_LOG=str(data / 'desktop.log'))}
+                                  if sys.platform == 'win32' else {}))
     instance = data / 'server.json'
     try:
         deadline = time.monotonic() + 30

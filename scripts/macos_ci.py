@@ -36,6 +36,7 @@ def run(command, *, cwd=None, env=None, log=None):
             stream.write(('\nCOMMAND: ' + repr([str(v) for v in command]) + '\n').encode())
             result = subprocess.run([str(v) for v in command], cwd=cwd, env=env, stdout=stream, stderr=subprocess.STDOUT)
         if result.returncode:
+            print(Path(log).read_text(encoding='utf-8', errors='replace')[-16000:], flush=True)
             raise RuntimeError(f'Command failed ({result.returncode}); see {log}')
     else:
         subprocess.run([str(v) for v in command], cwd=cwd, env=env, check=True)

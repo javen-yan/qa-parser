@@ -102,3 +102,29 @@ def test_relocation_requires_complete_manifest_and_preserves_unpacked_bytes(tmp_
     (internal / 'licenses/NOTICE').write_bytes(b'tampered')
     with pytest.raises(AssertionError, match='Native resource changed'):
         smoke.relocate_bundle(exe, output)
+
+
+def test_execute_surfaces_internal_windowed_cli_and_summary_diagnostics(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+    folder = tmp_path / 'run'
+    folder.mkdir()
+    (folder / 'summary.json').write_text(json.dumps({'status': 'failed', 'document_issues': [{'message': 'synthetic parser failure'}]}))
+    log = tmp_path / 'choice.log'
+    original_env = {'PATH': '/restricted'}
+
+    def failed_run(command, **kwargs):
+        assert kwargs['env']['QA_PARSER_CLI_LOG'] == str(log.with_suffix('.internal.log'))
+        Path(kwargs['env']['QA_PARSER_CLI_LOG']).write_text('x' * 20000 + '\nwindowed traceback sentinel')
+        kwargs['stdout'].write(b'stdout failure sentinel')
+        return SimpleNamespace(returncode=1)
+
+    monkeypatch.setattr(smoke.subprocess, 'run', failed_run)
+    with pytest.raises(AssertionError) as caught:
+        smoke.execute(['frozen.exe', '--cli'], ['run', 'synthetic.docx', '--out', folder], tmp_path, original_env, log)
+    message = str(caught.value)
+    assert 'windowed traceback sentinel' in message
+    assert 'stdout failure sentinel' in message
+    assert 'synthetic parser failure' in message
+    assert len(message) < 10000
+    assert 'QA_PARSER_CLI_LOG' not in original_env

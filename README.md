@@ -21,6 +21,8 @@ Mac使用 [macOS native portable candidates 工作流](https://github.com/javen-
 
 仓库的 [Windows portable candidate 工作流](https://github.com/javen-yan/qa-parser/actions/workflows/windows-portable.yml) 仅手动触发。在 Actions 中选择该工作流 → Run workflow。只有构建、合成回归、解压后冻结程序及原生窗口冒烟均通过，才上传 `qa-parser-windows-x64-candidate` artifact；证据另存 `windows-build-evidence`，保留14天。
 
+当Actions artifact配额不足时，可手动运行 [Native release via owned draft](https://github.com/javen-yan/qa-parser/actions/workflows/release.yml)，直接向同一未发布草稿上传三平台验证包，完成后附校验值与说明。只有用户版本tag触发且全部门槛通过才发布；手动运行保留草稿，不创造正式版本号。详见[草稿及版本发布流程](docs/release-pipeline.md)。
+
 下载artifact，先解开GitHub外层归档，再完整解压其中的 `qa-parser-windows-x64-candidate.zip`，进入“题库转换”文件夹双击EXE。保留 `_internal` 及其子目录。固定版WebView2、WMF转换器、离线字体和Python运行环境均随包分发；不在首次启动时下载。任务及浏览器缓存写入用户LOCALAPPDATA，不写程序目录。
 
 **各平台云端包目前是候选构建。** CI运行环境是Windows Server 2022 x64；客户Windows11 x64的断网、非管理员、只读程序目录、安全软件及签名验收需分别记录。真实9份Word未上传，不能把合成测试通过写成Windows 900/900。Windows暂不启用Mac完整版的LibreOffice原图路径，复杂原图可能进入未导出清单。详见[Windows构建及验证说明](docs/windows-ci.md)。

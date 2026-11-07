@@ -228,10 +228,55 @@ def relocate_bundle(executable: Path, output: Path):
         'relocation': 'ZIP unpacked to Chinese and space path; file hashes equal original', 'archive': str(archive)}
 
 
+def tail_text(path: Path, limit=8192):
+    """Read bounded diagnostic tails without loading entire runner logs."""
+    try:
+        with path.open('rb') as stream:
+            stream.seek(0, os.SEEK_END)
+            size = stream.tell()
+            stream.seek(max(0, size - limit))
+            return stream.read(limit).decode('utf-8', errors='replace')
+    except OSError as error:
+        return f'[{type(error).__name__}: diagnostic file unavailable]'
+
+
+def failure_details(arguments, log: Path, internal: Path):
+    sections = [f'{path.name} (last 8192 bytes):\n{tail_text(path)}' for path in (internal, log)]
+    if '--out' in arguments:
+        index = arguments.index('--out')
+        if index + 1 < len(arguments):
+            directory = Path(arguments[index + 1])
+            for filename in ('summary.json', 'batch-summary.json'):
+                path = directory / filename
+                if not path.is_file():
+                    continue
+                try:
+                    if path.stat().st_size > 1024 * 1024:
+                        text = '[summary exceeds 1 MiB; bounded tail]\n' + tail_text(path)
+                    else:
+                        report = json.loads(path.read_text(encoding='utf-8'))
+                        selected = {key: report[key] for key in ('status', 'document_issues', 'user_result', 'delivery_error', 'message') if key in report}
+                        if 'files' in report and isinstance(report['files'], list):
+                            selected['files'] = [{key: row.get(key) for key in ('name', 'status', 'message', 'reasons', 'diagnostic')} for row in report['files']]
+                        text = json.dumps(selected, ensure_ascii=False, indent=2)
+                        if len(text.encode('utf-8')) > 8192:
+                            text = text.encode('utf-8')[:8192].decode('utf-8', errors='replace') + '\n[summary diagnostic truncated]'
+                    sections.append(f'{filename} failure summary:\n{text}')
+                except (OSError, ValueError, TypeError) as error:
+                    sections.append(f'{filename}: {type(error).__name__}; tail:\n{tail_text(path)}')
+    return '\n\n'.join(sections)
+
+
 def execute(command, args, cwd, env, log: Path, expected=0, timeout=120):
-    with log.open('wb') as stream:
-        result = subprocess.run([*command, *map(str, args)], cwd=cwd, env=env, stdout=stream, stderr=subprocess.STDOUT, timeout=timeout, check=False)
-    require(result.returncode == expected, f'Exit {result.returncode}, expected {expected}; see {log}')
+    arguments = list(map(str, args))
+    internal = log.with_suffix('.internal.log').resolve()
+    child_env = dict(env, QA_PARSER_CLI_LOG=str(internal))
+    try:
+        with log.open('wb') as stream:
+            result = subprocess.run([*command, *arguments], cwd=cwd, env=child_env, stdout=stream, stderr=subprocess.STDOUT, timeout=timeout, check=False)
+    except subprocess.TimeoutExpired as error:
+        raise AssertionError(f'Command exceeded {timeout}s; see {log}\n{failure_details(arguments, log, internal)}') from error
+    require(result.returncode == expected, f'Exit {result.returncode}, expected {expected}; see {log}\n' + failure_details(arguments, log, internal) if result.returncode != expected else '')
 
 
 def main(argv=None):
