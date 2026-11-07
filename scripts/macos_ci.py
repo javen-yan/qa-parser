@@ -111,7 +111,9 @@ def native_dependencies(build, arch, cache):
         if name == 'jpeg-turbo':
             run([cmake, '-S', source, '-B', source / 'build', f'-DCMAKE_INSTALL_PREFIX={prefix}',
                  f'-DCMAKE_OSX_ARCHITECTURES={arch}', '-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0',
-                 f'-DCMAKE_OSX_SYSROOT={sdk}', '-DWITH_JPEG8=1', '-DENABLE_STATIC=OFF', '-DWITH_SIMD=OFF'], env=env, log=log)
+                 f'-DCMAKE_OSX_SYSROOT={sdk}', '-DCMAKE_INSTALL_LIBDIR=lib',
+                 f'-DCMAKE_INSTALL_NAME_DIR={prefix}/lib', f'-DCMAKE_INSTALL_RPATH={prefix}/lib',
+                 '-DWITH_JPEG8=1', '-DENABLE_STATIC=OFF', '-DWITH_SIMD=OFF'], env=env, log=log)
             run([cmake, '--build', source / 'build', '--parallel', '3'], env=env, log=log)
             run([cmake, '--install', source / 'build'], env=env, log=log)
         else:

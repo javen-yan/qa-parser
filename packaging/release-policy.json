@@ -1,11 +1,14 @@
 {
   "schema_version": 1,
-  "required_targets": ["windows-x64", "macos-arm64", "macos-x86_64"],
+  "required_targets": [
+    "windows-x64",
+    "macos-arm64",
+    "macos-x86_64"
+  ],
   "stable_release_approved": false,
   "stable_release_blockers": [
     "Customer Windows 11 portable environment acceptance is not complete",
     "macOS Intel/ARM64 cloud validation and distribution/signing scope must be recorded",
-    "Target application import and rendering are not verified",
     "Windows downstream redistribution terms must be included in customer delivery"
   ],
   "variant": "light",

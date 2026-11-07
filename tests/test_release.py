@@ -15,6 +15,8 @@ def load(name):
 
 
 release = load('prepare_release')
+VERSION = release.tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['version']
+CANDIDATE_TAG = 'v' + VERSION + '-rc.1'
 
 
 def inputs(tmp_path):
@@ -33,7 +35,7 @@ def inputs(tmp_path):
 
 def test_release_requires_complete_same_commit_set(tmp_path):
     incoming = inputs(tmp_path)
-    result = release.assemble(incoming, tmp_path / 'out', 'v0.3.0-rc.1', 'abc')
+    result = release.assemble(incoming, tmp_path / 'out', CANDIDATE_TAG, 'abc')
     assert len(result['artifacts']) == 3 and result['prerelease']
     assert (tmp_path / 'out/SHA256SUMS.txt').read_text().count('\n') == 3
     assert '900/900' in (tmp_path / 'out/RELEASE_NOTES.md').read_text()
@@ -54,20 +56,20 @@ def test_release_fails_before_output_on_incomplete_evidence(tmp_path, mutation):
         data['source_closure_complete'] = False
     metadata.write_text(json.dumps(data))
     with pytest.raises(ValueError):
-        release.assemble(incoming, tmp_path / 'out', 'v0.3.0-rc.1', 'abc')
+        release.assemble(incoming, tmp_path / 'out', CANDIDATE_TAG, 'abc')
     assert not (tmp_path / 'out').exists()
 
 
 def test_stable_release_not_approved_and_version_mismatch(tmp_path):
     with pytest.raises(ValueError, match='Stable publication blocked'):
-        release.assemble(tmp_path, tmp_path / 'out', 'v0.3.0', 'abc')
+        release.assemble(tmp_path, tmp_path / 'out', 'v' + VERSION, 'abc')
     with pytest.raises(ValueError, match='match pyproject'):
         release.assemble(tmp_path, tmp_path / 'out', 'v9.9.9-rc.1', 'abc')
 
 
 def test_remote_asset_mismatch_never_publishes_draft(tmp_path, monkeypatch):
     publisher = load('publish_release')
-    (tmp_path / 'release-manifest.json').write_text(json.dumps({'tag': 'v0.3.0-rc.1', 'prerelease': True}))
+    (tmp_path / 'release-manifest.json').write_text(json.dumps({'tag': CANDIDATE_TAG, 'prerelease': True}))
     (tmp_path / 'RELEASE_NOTES.md').write_text('synthetic')
     calls = []
     def fake(*args):
