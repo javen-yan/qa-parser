@@ -154,7 +154,8 @@ def check_batch(folder: Path):
         require(len([n for n in names if n.endswith('题目预览.html')]) == 2, 'Batch previews missing')
         require(not any(n.endswith(('.json', '.log', '.docx', '.xml', '.bin')) for n in names), 'Internal diagnostics/source leaked into delivery ZIP')
         require('_display/NotoSansCJKsc-Regular.otf' in names and '_display/OFL.txt' in names, 'Shared font or license missing')
-        require(len([n for n in names if '/images/' in n]) == 1, 'Synthetic image count differs')
+        require(len([n for n in names if n.endswith('.png')]) == 1, 'Synthetic image count differs')
+        require('合成 选择.xlsx' in names and '合成 选择/0001.png' in names, 'Same-basename delivery layout differs')
     return {'questions': 2, 'zip_crc': 'passed', 'xlsx_files': 2, 'internal_files_excluded': True}
 
 

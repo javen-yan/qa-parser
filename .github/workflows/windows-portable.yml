@@ -3,12 +3,19 @@ name: Windows portable candidate
 on:
   workflow_dispatch:
     inputs:
+      upload_artifacts:
+        description: Upload Actions artifacts (requires storage quota)
+        type: boolean
+        default: false
       probe_only:
         description: Only test Actions artifact storage; do not build
         type: boolean
         default: false
   workflow_call:
     inputs:
+      upload_artifacts:
+        type: boolean
+        default: false
       probe_only:
         type: boolean
         default: false
@@ -36,6 +43,7 @@ jobs:
         run: |
           'qa-parser Windows Actions artifact storage probe' | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'qa-parser-quota-probe.txt')
       - name: Verify Actions artifact quota before building
+        if: inputs.probe_only || inputs.upload_artifacts
         id: quota-probe
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -50,3 +58,5 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/build-windows
         if: ${{ !inputs.probe_only }}
+        with:
+          upload-artifacts: ${{ inputs.upload_artifacts && 'true' || 'false' }}

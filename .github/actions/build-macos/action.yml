@@ -45,6 +45,9 @@ runs:
     - name: Unzip and execute frozen CLI, WMF and Cocoa window
       shell: bash
       run: python scripts/macos_smoke.py --app 'dist/macos/题库转换.app' --out 'build/中文 macOS smoke' --gui --expected-arch '${{ inputs.architecture }}'
+    - name: Mixed formula business and native capture checks
+      shell: bash
+      run: python scripts/mixed_formula_smoke.py --exe 'build/中文 macOS smoke/中文 解压/题库转换.app/Contents/MacOS/题库转换' --out 'build/混合 Mac 验证'
     - name: Prepare exact verified ZIP and checksum
       env:
         QA_ARCH: ${{ inputs.architecture }}

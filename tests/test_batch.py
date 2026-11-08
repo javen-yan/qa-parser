@@ -20,9 +20,9 @@ def choice(number='1', answer='A'):
     return [f'{number}．选择正确项', 'A．甲 B．乙 C．丙 D．丁', f'【答案】{answer}']
 
 
-def test_auto_same_name_and_corrupt_file_are_isolated(tmp_path):
+def test_auto_named_files_and_corrupt_file_are_isolated(tmp_path):
     first = docx(tmp_path / 'one/相同文件.docx', choice())
-    second = docx(tmp_path / 'two/相同文件.docx', ['1．填空____', '【答案】乙'])
+    second = docx(tmp_path / 'two/另一文件.docx', ['1．填空____', '【答案】乙'])
     broken = tmp_path / 'broken.docx'
     broken.write_bytes(b'broken')
     events = []
@@ -109,3 +109,9 @@ def test_bad_batch_arguments_do_not_create_output(tmp_path):
     with pytest.raises(ValueError):
         run_batch([tmp_path / 'missing.docx'], 'unknown', out)
     assert not out.exists()
+
+
+def test_duplicate_numeric_names_rejected_before_conversion(tmp_path):
+    with pytest.raises(ValueError, match='文件名重复'):
+        run_batch([tmp_path / 'a/1.docx', tmp_path / 'b/1.DOCX'], 'auto', tmp_path / 'work')
+    assert not (tmp_path / 'work').exists()

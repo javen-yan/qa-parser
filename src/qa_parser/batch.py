@@ -16,7 +16,7 @@ import shutil
 from .classification import classify_document
 from .core import run_document
 from .document import MAX_ARCHIVE
-from .delivery import publish_delivery
+from .delivery import publish_delivery, validate_delivery_names
 
 
 def _write_json(path: Path, data: dict) -> None:
@@ -91,6 +91,7 @@ def run_batch(inputs: list[Path], mode: str, out: Path, progress=None, *,
     if not inputs:
         raise ValueError("No Word inputs")
     sources = [Path(source).expanduser().absolute() for source in inputs]
+    validate_delivery_names(source.name for source in sources)
     out = Path(out).expanduser().absolute()
     out.mkdir(parents=True, exist_ok=False)
     rows = []

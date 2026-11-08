@@ -183,7 +183,7 @@ def export_task(task: dict, task_dir: Path, out_dir: Path, allow_partial: bool =
         "rows": [{"excel_row": i + 2, "id": q.get("id"), "number": q.get("number")}
                  for i, q in enumerate(included)],
         "images": [{key: a[key] for key in ("filename", "sha256", "origin", "formula_id", "source_preview_sha256", "engine", "width", "height") if key in a} for a, _ in resources],
-        "formula_outcomes": [{key: f[key] for key in ("id", "format", "status", "location", "reason", "fallback_asset_id", "fallback_engine") if key in f}
+        "formula_outcomes": [{key: f[key] for key in ("id", "format", "status", "location", "reason", "fallback_asset_id", "fallback_engine", "output_policy", "raster_evidence") if key in f}
                              for f in task.get("formulas", []) if any(f["id"] in q.get("formula_ids", []) for q in included)],
         "notes": ["Generated against a provisional column contract; target-system import and rendering have not been verified."],
     }

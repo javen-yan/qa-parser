@@ -213,3 +213,23 @@ def test_loopback_server_starts_without_reverse_dns(tmp_path, monkeypatch):
         assert server.server_name == '127.0.0.1'
         assert server.server_port > 0
         assert server.origin == f'http://127.0.0.1:{server.server_port}'
+
+
+def test_numeric_ui_worker_preserves_names_and_preflights_duplicates(tmp_path):
+    from test_batch import docx, choice
+    from zipfile import ZipFile
+    data = docx(tmp_path / 'source.docx', choice()).read_bytes()
+    app = Application(tmp_path / 'state', tmp_path / 'out')
+    for name in ['01.docx', '10.docx', '01.DOCX']:
+        app.add_file(name, io.BytesIO(data), len(data))
+    with pytest.raises(UIError, match='文件名重复'):
+        app.start('auto')
+    assert not app.busy and app.batch is None
+    assert not (tmp_path / 'out').exists()
+    app.remove(app.files[-1]['id'])
+    app.start('auto')
+    app.worker.join(timeout=20)
+    assert not app.worker.is_alive()
+    assert app.state()['batch']['status'] == 'success'
+    with ZipFile(app.state()['batch']['delivery']) as z:
+        assert {'01.xlsx', '10.xlsx', '01/', '10/'} <= set(z.namelist())

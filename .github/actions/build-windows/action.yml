@@ -62,6 +62,11 @@ runs:
       run: |
         python scripts/windows_smoke.py --exe 'dist/windows/题库转换/题库转换.exe' --out 'build/中文 Windows smoke' --gui
         if ($LASTEXITCODE -ne 0) { throw 'Frozen application smoke failed' }
+    - name: Mixed formula business and native capture checks
+      shell: pwsh
+      run: |
+        python scripts/mixed_formula_smoke.py --exe 'build/中文 Windows smoke/中文 解压/题库转换/题库转换.exe' --out 'build/混合 Windows 验证'
+        if ($LASTEXITCODE -ne 0) { throw 'Mixed formula acceptance failed' }
     - name: Create portable ZIP only after successful smoke
       shell: pwsh
       run: |

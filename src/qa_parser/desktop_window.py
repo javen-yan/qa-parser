@@ -73,6 +73,20 @@ def stop_service(process: subprocess.Popen) -> None:
     process.wait(timeout=5)
 
 
+def service_stopper(process):
+    """Serialize the closed callback and finalizer; never re-signal a reaped PGID."""
+    lock = threading.Lock()
+    stopped = False
+
+    def stop():
+        nonlocal stopped
+        with lock:
+            if not stopped:
+                stop_service(process)
+                stopped = True
+    return stop
+
+
 def main(argv=None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == ['--cli'] or os.environ.get('QA_PARSER_CLI_LOG'):
@@ -113,6 +127,7 @@ def main(argv=None) -> int:
                                         **({'QA_PARSER_STARTUP_DIAGNOSTICS': '1'} if smoke else {})),
                                **({'creationflags': subprocess.CREATE_NO_WINDOW}
                                   if sys.platform == 'win32' else {}))
+    stop = service_stopper(process)
     instance = data / 'server.json'
     try:
         deadline = time.monotonic() + 30
@@ -146,7 +161,7 @@ def main(argv=None) -> int:
 
         def on_closed(*_):
             closed.set()
-            stop_service(process)
+            stop()
 
         def watch_service():
             process.wait()
@@ -196,7 +211,7 @@ def main(argv=None) -> int:
                          if sys.platform == 'win32' else {}))
         return 1 if smoke and not smoke_passed.is_set() else 0
     finally:
-        stop_service(process)
+        stop()
         instance.unlink(missing_ok=True)
         log.close()
 
