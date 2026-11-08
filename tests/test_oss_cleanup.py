@@ -103,3 +103,13 @@ def test_wrong_source_tag_blocks_attachment_cleanup(setup,monkeypatch):
         c.cleanup(repo,'9',receipt,apply=True)
     assert len(current)==2
     assert not any(m in ('PATCH','DELETE') for _,m in calls)
+
+
+@pytest.mark.parametrize('message,retries',[('TLS handshake timeout',3),('HTTP 403',1)])
+def test_only_transient_reads_retry_with_a_bound(monkeypatch,message,retries):
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1]/'scripts'))
+    c=importlib.import_module('cleanup_oss_draft');calls=[]
+    monkeypatch.setattr(c.time,'sleep',lambda seconds:None)
+    def fail(*args):calls.append(args);raise RuntimeError(message)
+    with pytest.raises(RuntimeError):c.retry_read(fail,'read-only-endpoint')
+    assert len(calls)==retries

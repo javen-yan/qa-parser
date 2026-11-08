@@ -4,10 +4,31 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 from release_draft import api, assets, TARGETS
 from sync_release_oss import release_owner, verify_public
+
+
+def retry_read(operation, *args):
+    for attempt in range(3):
+        try:
+            return operation(*args)
+        except RuntimeError as error:
+            transient = any(value in str(error) for value in (
+                'TLS handshake timeout', 'EOF', 'connection reset', 'HTTP 502', 'HTTP 503', 'HTTP 504'))
+            if not transient or attempt == 2:
+                raise
+            time.sleep(attempt + 1)
+
+
+def read_api(endpoint):
+    return retry_read(api, endpoint)
+
+
+def read_assets(repo, release_id):
+    return retry_read(assets, repo, release_id)
 
 
 def asset_identity(item):
@@ -23,7 +44,7 @@ def cleanup(repo, release_id, receipt, *, apply=False):
         raise ValueError('Receipt repository/release mismatch')
     if receipt.get('status') != 'uploaded-and-public-sha256-verified' or not receipt.get('draft'):
         raise ValueError('Complete public download SHA evidence for a candidate is required')
-    release = api(f'repos/{repo}/releases/{release_id}')
+    release = read_api(f'repos/{repo}/releases/{release_id}')
     marker = f"<!-- qa-parser-oss-delivery:{release_id}:{receipt['commit']} -->"
     if not release['draft'] and (not release.get('prerelease') or marker not in release.get('body', '')):
         raise ValueError('Never modify an unrelated published or stable Release')
@@ -31,13 +52,13 @@ def cleanup(repo, release_id, receipt, *, apply=False):
     if owner['mode'] != 'manual' or owner['commit'] != receipt['commit']:
         raise ValueError('Only the exact manual candidate may be archived')
     def check_run():
-        run = api(f"repos/{repo}/actions/runs/{owner['run_id']}")
+        run = read_api(f"repos/{repo}/actions/runs/{owner['run_id']}")
         if run.get('status') != 'completed' or run.get('head_sha') != owner['commit'] or run.get('path') != '.github/workflows/release.yml':
             raise ValueError('Producer workflow is running or source identity differs')
     check_run()
     def check_source_tag(required):
         try:
-            item = api(f"repos/{repo}/git/ref/tags/{owner['tag']}")['object']
+            item = read_api(f"repos/{repo}/git/ref/tags/{owner['tag']}")['object']
         except RuntimeError as error:
             if not required and 'HTTP 404' in str(error):
                 return
@@ -49,7 +70,7 @@ def cleanup(repo, release_id, receipt, *, apply=False):
                 return
             if item['type'] != 'tag':
                 break
-            item = api(f"repos/{repo}/git/tags/{item['sha']}")['object']
+            item = read_api(f"repos/{repo}/git/tags/{item['sha']}")['object']
         raise ValueError('Candidate Source tag cannot be resolved')
     if apply:
         check_source_tag(not release['draft'])
@@ -78,7 +99,7 @@ def cleanup(repo, release_id, receipt, *, apply=False):
         pair = {f'qa-parser-{target}-candidate.zip', f'release-metadata-{target}.json'}
         if pair & set(mirrored) and not pair <= set(mirrored):
             raise ValueError('Candidate mirror pair is incomplete')
-    current = assets(repo, release_id)
+    current = read_assets(repo, release_id)
     if set(current) - set(mirrored):
         raise ValueError('Not every Release asset has verified OSS evidence')
     for name, remote in current.items():
@@ -100,9 +121,9 @@ def cleanup(repo, release_id, receipt, *, apply=False):
         if not item['key'].endswith('.zip'):
             body += f"- [{item['key'].rsplit('/', 1)[-1]}]({item['url']})\n"
     body += '\n这是候选预发布，不是稳定正式版；客户环境、签名公证及真实系统导入尚未验收。Source 链接保留对应源码。\n'
-    latest = api(f'repos/{repo}/releases/{release_id}')
+    latest = read_api(f'repos/{repo}/releases/{release_id}')
     release_fields = ('body', 'draft', 'prerelease', 'tag_name', 'target_commitish')
-    if any(latest.get(k) != release.get(k) for k in release_fields) or {n: asset_identity(a) for n, a in assets(repo, release_id).items()} != {n: asset_identity(a) for n, a in current.items()}:
+    if any(latest.get(k) != release.get(k) for k in release_fields) or {n: asset_identity(a) for n, a in read_assets(repo, release_id).items()} != {n: asset_identity(a) for n, a in current.items()}:
         raise ValueError('Release changed during verification; retaining attachments')
     check_run()
     removed = []
@@ -110,17 +131,17 @@ def cleanup(repo, release_id, receipt, *, apply=False):
         payload = {'body': body, 'tag_name': owner['tag'], 'target_commitish': owner['commit'],
                    'draft': release['draft'], 'prerelease': True, 'make_latest': 'false'}
         api(f'repos/{repo}/releases/{release_id}', method='PATCH', payload=payload)
-        saved = api(f'repos/{repo}/releases/{release_id}')
+        saved = read_api(f'repos/{repo}/releases/{release_id}')
         if saved.get('body') != body or saved.get('tag_name') != owner['tag'] or saved.get('target_commitish') != owner['commit']:
             raise ValueError('OSS download description not saved; attachments retained')
         for name, remote in current.items():
-            fresh = assets(repo, release_id)
+            fresh = read_assets(repo, release_id)
             if name not in fresh or asset_identity(fresh[name]) != asset_identity(remote) or set(fresh) - set(current):
                 raise ValueError('Attachments changed; stopping cleanup')
             check_run()
             api(f"repos/{repo}/releases/assets/{remote['id']}", method='DELETE')
             removed.append(name)
-        if assets(repo, release_id):
+        if read_assets(repo, release_id):
             raise ValueError('Attachments remain; keep candidate state')
         result = api(f'repos/{repo}/releases/{release_id}', method='PATCH', payload={
             'body': body, 'tag_name': owner['tag'], 'target_commitish': owner['commit'],

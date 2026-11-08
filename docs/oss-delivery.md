@@ -32,3 +32,9 @@ GitHub 草稿可见性和附件清理需要 `contents: write`，检查生产任�
 大于 16 MiB 的对象采用 4 路、8 MiB 分片；每片 Content-MD5 与 SDK CRC 校验，合并时核对组合 CRC 并再次带 forbid-overwrite，失败只终止本次 upload ID。小文件继续单次上传。需额外只读 `oss:GetBucketVersioning` 和本目录 `oss:AbortMultipartUpload` 权限；若 bucket 版本控制已启用或暂停，OSS 会忽略 forbid-overwrite，因此脚本拒绝写入，不修改版本控制。依据：[分片上传](https://www.alibabacloud.com/help/en/oss/developer-reference/use-oss-python-sdk-to-multipart-upload)、[完成分片与禁止覆盖条件](https://www.alibabacloud.com/help/en/oss/developer-reference/completemultipartupload)。
 
 CI 在 Release-ID 串行锁内，仅列举并终止当前精确对象 key 的未完成旧分片，再启动新上传。需 `oss:ListMultipartUploads` 和 `oss:AbortMultipartUpload`；不会清理相邻 key、其他候选或完整 OSS 对象。
+
+## 构建后自动接续
+
+`main` 上手动触发的 `Native release via owned draft` 成功结束后，`workflow_run` 自动定位同一 run/commit 的唯一候选，执行三平台 OSS 同步和上述页面保留流程。解析器核实生产工作流、来源仓库、main 分支、手动触发和成功完成状态；不从其他仓库、PR 或未完成任务接收产物。按解析后的 Release ID 与手动同步共用串行锁。已经完成镜像的候选会跳过。没有 Secrets 或校验失败时保留附件并报告失败，不扩大权限。
+
+本轮实际验收：原生工作流 `42447683505` 三平台通过；OSS 同步 `42449275709` 三平台完整公网 SHA 通过。Release `438035464` 的 9 个附件及旧 Windows Release `438026570` 的 2 个附件均已清理，两个页面保留为 prerelease，Source tag 已核对。自动 `workflow_run` 接续已配置并测试来源解析；尚未为该接续重新触发整轮原生构建。
