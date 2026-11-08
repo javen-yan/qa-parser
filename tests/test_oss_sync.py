@@ -38,7 +38,7 @@ class Bucket:
         return SimpleNamespace(content_length=len(self.content), headers=self.headers)
     def get_object(self, key):
         return io.BytesIO(self.content)
-    def put_object_from_file(self, key, path, headers):
+    def put_object_from_file(self, key, path, headers, progress_callback=None):
         self.calls.append((key, headers))
         self.content = Path(path).read_bytes()
         self.headers = headers
@@ -110,3 +110,10 @@ def test_public_download_checks_actual_bytes(sync,monkeypatch):
     sync.verify_public(Response.url,3,hashlib.sha256(b'abc').hexdigest())
     with pytest.raises(ValueError,match='SHA-256'):
         sync.verify_public(Response.url,3,hashlib.sha256(b'xyz').hexdigest())
+
+
+def test_sdk_error_reports_code_without_signed_payload(sync):
+    class Denied(Exception):
+        status=403
+        code='AccessDenied'
+    assert sync.safe_error(Denied('secret signed headers private-token')) == 'Denied HTTP 403 AccessDenied'

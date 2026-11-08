@@ -162,7 +162,13 @@ def upload_immutable(bucket, key, path):
     with path.open('rb') as stream:
         md5 = hashlib.file_digest(stream, 'md5').digest()
     print(f'Uploading {key} ({path.stat().st_size} bytes)', flush=True)
-    result = bucket.put_object_from_file(key, str(path), headers={
+    last_reported = [-1]
+    def progress(consumed, total):
+        stage = consumed // (32 * 1024 * 1024)
+        if stage > last_reported[0] or consumed == total:
+            last_reported[0] = stage
+            print(f'Transferred {consumed}/{total} bytes', flush=True)
+    result = bucket.put_object_from_file(key, str(path), progress_callback=progress, headers={
         'x-oss-forbid-overwrite': 'true', 'x-oss-meta-sha256': digest,
         'Content-MD5': base64.b64encode(md5).decode('ascii'),
         'Content-Type': 'application/zip' if path.suffix == '.zip' else 'text/plain; charset=utf-8',
@@ -257,16 +263,30 @@ def main(argv=None):
     return 0
 
 
+def safe_error(error):
+    message = str(error) if isinstance(error, ValueError) else type(error).__name__
+    status = getattr(error, 'status', None)
+    code = getattr(error, 'code', None)
+    if isinstance(status, int):
+        message += f' HTTP {status}'
+    if isinstance(code, str) and re.fullmatch(r'[A-Za-z0-9_]{1,80}', code):
+        message += ' ' + code
+    if isinstance(error, RuntimeError):
+        match = re.search(r'HTTP ([1-5][0-9]{2})', str(error))
+        if match:
+            message += ' GitHub HTTP ' + match[1]
+    for name in SECRET_NAMES:
+        value = os.environ.get(name)
+        if value:
+            message = message.replace(value, '[redacted]')
+    return message
+
+
 if __name__ == '__main__':
     try:
         raise SystemExit(main())
     except Exception as error:
         # SDK error payloads may include signed request details. Never print
         # their bodies, request headers, credentials or tracebacks.
-        message = str(error) if isinstance(error, ValueError) else type(error).__name__
-        for name in SECRET_NAMES:
-            value = os.environ.get(name)
-            if value:
-                message = message.replace(value, '[redacted]')
-        print('OSS sync failed: ' + message, file=sys.stderr)
+        print('OSS sync failed: ' + safe_error(error), file=sys.stderr)
         raise SystemExit(1)
