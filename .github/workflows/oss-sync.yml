@@ -14,12 +14,17 @@ on:
         description: Validate metadata and destination without uploading
         type: boolean
         default: true
+      cleanup_draft:
+        description: Delete only a completed owned draft after all assets pass public SHA checks
+        type: boolean
+        default: true
 permissions:
   # GitHub requires push access to see private draft Release assets.
-  # The script performs only GET requests; checkout keeps no credentials.
+  # Optional cleanup deletes only fully mirrored owned drafts; never tags/source.
   contents: write
+  actions: read
 concurrency:
-  group: oss-${{ inputs.release_id }}-${{ inputs.target }}
+  group: oss-${{ inputs.release_id }}
   cancel-in-progress: false
 jobs:
   sync:
@@ -43,6 +48,7 @@ jobs:
           RELEASE_ID: ${{ inputs.release_id }}
           TARGET: ${{ inputs.target }}
           PLAN_ONLY: ${{ inputs.plan_only }}
+          CLEANUP_DRAFT: ${{ inputs.cleanup_draft }}
           ALIYUN_OSS_ACCESS_KEY_ID: ${{ secrets.ALIYUN_OSS_ACCESS_KEY_ID }}
           ALIYUN_OSS_ACCESS_KEY_SECRET: ${{ secrets.ALIYUN_OSS_ACCESS_KEY_SECRET }}
           ALIYUN_OSS_BUCKET: ${{ secrets.ALIYUN_OSS_BUCKET }}
@@ -56,6 +62,7 @@ jobs:
           if [ "$PLAN_ONLY" = true ]; then
             args+=(--plan-only)
           else
+            if [ "$CLEANUP_DRAFT" = true ]; then args+=(--cleanup-draft); fi
             PYTHONPATH=scripts python -c 'from sync_release_oss import settings; import os; settings(os.environ)'
           fi
           python scripts/sync_release_oss.py --release-id "$RELEASE_ID" --target "$TARGET" --work "$RUNNER_TEMP/oss-sync" "${args[@]}"

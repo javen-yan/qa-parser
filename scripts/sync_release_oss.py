@@ -90,6 +90,13 @@ def prepare(repo, release_id, targets, work, *, plan_only=False):
         manifest = json.loads(path.read_text(encoding='utf-8'))
         if manifest.get('commit') != owner['commit'] or manifest.get('tag') != owner['tag'] or {r['target'] for r in manifest.get('artifacts', [])} != set(TARGETS):
             raise ValueError('Published release native manifest is incomplete')
+    release_files = []
+    for name in ('release-manifest.json', 'SHA256SUMS.txt', 'RELEASE_NOTES.md'):
+        if name in current:
+            path = work / name
+            if not path.exists():
+                download(repo, current[name], path)
+            release_files.append(str(path))
     rows = []
     for target in targets:
         folder = work / target
@@ -124,11 +131,12 @@ def prepare(repo, release_id, targets, work, *, plan_only=False):
                      'files': [str(p) for p in (archive, metadata, checksum, notes)]})
     return {'schema_version': 1, 'status': 'planned' if plan_only else 'downloaded-and-verified',
             'repository': repo, 'release_id': str(release_id), 'release_url': release['html_url'],
-            'draft': release['draft'], 'commit': owner['commit'], 'targets': rows}
+            'draft': release['draft'], 'commit': owner['commit'], 'run_id': owner['run_id'],
+            'tag': owner['tag'], 'release_prefix': prefix + '/release', 'release_files': release_files, 'targets': rows}
 
 
 def upload_immutable(bucket, key, path):
-    if not re.fullmatch(r'qa-parser/(?:candidates|releases)/[A-Za-z0-9.-]+/(?:windows-x64|macos-arm64|macos-x86_64)/[A-Za-z0-9_.-]+', key):
+    if not re.fullmatch(r'qa-parser/(?:candidates|releases)/[A-Za-z0-9.-]+/(?:windows-x64|macos-arm64|macos-x86_64|release)/[A-Za-z0-9_.-]+', key):
         raise ValueError('Unsafe OSS destination; no latest or arbitrary prefix allowed')
     digest = sha(path)
     try:
@@ -166,14 +174,22 @@ def upload_immutable(bucket, key, path):
     return 'uploaded'
 
 
-def verify_public(url, size):
+def verify_public(url, size, digest=None):
     # No signed URL, access key, ACL mutation or public permission change.
-    with urlopen(Request(url, method='HEAD'), timeout=30) as response:
+    with urlopen(Request(url, method='GET' if digest else 'HEAD'), timeout=60) as response:
         final = urlsplit(response.url)
         if final.scheme != 'https' or final.username or final.password or final.query or final.fragment:
             raise ValueError('Public download redirected to a credentialed/non-HTTPS URL')
         if response.status != 200 or int(response.headers.get('Content-Length', '-1')) != size:
-            raise ValueError('Anonymous public download HEAD did not match uploaded object')
+            raise ValueError('Anonymous public download did not match uploaded object')
+        if digest:
+            check = hashlib.sha256()
+            count = 0
+            while chunk := response.read(1024 * 1024):
+                count += len(chunk)
+                check.update(chunk)
+            if count != size or check.hexdigest() != digest:
+                raise ValueError('Anonymous public download SHA-256 mismatch')
 
 
 def main(argv=None):
@@ -183,6 +199,7 @@ def main(argv=None):
     parser.add_argument('--target', choices=(*TARGETS, 'all'), default='windows-x64')
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--plan-only', action='store_true')
+    parser.add_argument('--cleanup-draft', action='store_true')
     args = parser.parse_args(argv)
     cfg = None if args.plan_only else settings(os.environ)
     targets = TARGETS if args.target == 'all' else (args.target,)
@@ -197,10 +214,35 @@ def main(argv=None):
                 path = Path(filename)
                 key = row['prefix'] + '/' + path.name
                 state = upload_immutable(bucket, key, path)
-                row['uploads'].append({'key': key, 'status': state, 'sha256': sha(path)})
+                url = cfg['public_base_url'] + '/' + quote(key, safe='/')
+                verify_public(url, path.stat().st_size, sha(path))
+                row['uploads'].append({'key': key, 'url': url, 'bytes': path.stat().st_size, 'status': state, 'sha256': sha(path)})
             row['url'] = cfg['public_base_url'] + '/' + quote(row['prefix'] + '/' + row['filename'], safe='/')
             verify_public(row['url'], row['bytes'])
-        report['status'] = 'uploaded-and-public-head-verified'
+        report['release_uploads'] = []
+        for filename in report.pop('release_files'):
+            path = Path(filename)
+            key = report['release_prefix'] + '/' + path.name
+            upload_immutable(bucket, key, path)
+            url = cfg['public_base_url'] + '/' + quote(key, safe='/')
+            verify_public(url, path.stat().st_size, sha(path))
+            report['release_uploads'].append({'key': key, 'url': url, 'bytes': path.stat().st_size, 'sha256': sha(path)})
+        report['status'] = 'uploaded-and-public-sha256-verified'
+        # Stable receipt is itself immutable and publicly verified before cleanup.
+        # Retry-specific upload states are excluded from the persisted receipt.
+        receipt = json.loads(json.dumps(report))
+        for row in receipt['targets']:
+            for item in row['uploads']:
+                item.pop('status', None)
+        receipt_path = args.work / 'delivery-record.json'
+        receipt_path.write_text(json.dumps(receipt, ensure_ascii=False, indent=2), encoding='utf-8')
+        record_key = report['release_prefix'] + '/delivery-record-' + '-'.join(targets) + '.json'
+        upload_immutable(bucket, record_key, receipt_path)
+        report['receipt_url'] = cfg['public_base_url'] + '/' + quote(record_key, safe='/')
+        verify_public(report['receipt_url'], receipt_path.stat().st_size, sha(receipt_path))
+        if args.cleanup_draft:
+            from cleanup_oss_draft import cleanup
+            report['cleanup'] = cleanup(args.repo, args.release_id, receipt, delete=True)
     (args.work / 'oss-sync-report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if os.environ.get('GITHUB_STEP_SUMMARY'):

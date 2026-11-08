@@ -98,3 +98,15 @@ def test_prepare_download_gate_and_plan(sync,tmp_path,monkeypatch):
         sync.prepare('test/repo','123',(target,),tmp_path/'bad')
     with pytest.raises(ValueError,match='missing'):
         sync.prepare('test/repo','123',sync.TARGETS,tmp_path/'all')
+
+
+def test_public_download_checks_actual_bytes(sync,monkeypatch):
+    import hashlib
+    class Response(io.BytesIO):
+        url='https://example.com/file.zip'
+        status=200
+        headers={'Content-Length':'3'}
+    monkeypatch.setattr(sync,'urlopen',lambda *a,**k:Response(b'abc'))
+    sync.verify_public(Response.url,3,hashlib.sha256(b'abc').hexdigest())
+    with pytest.raises(ValueError,match='SHA-256'):
+        sync.verify_public(Response.url,3,hashlib.sha256(b'xyz').hexdigest())
