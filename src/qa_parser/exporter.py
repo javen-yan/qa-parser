@@ -173,6 +173,7 @@ def export_task(task: dict, task_dir: Path, out_dir: Path, allow_partial: bool =
         "schema_version": 1,
         "source": task.get("source", {}),
         "kind": kind,
+        "image_reference": config.get("image_reference", "参考{filename}"),
         "import_contract": "unverified",
         "partial_requested": allow_partial,
         "partial": bool(omitted),

@@ -155,6 +155,7 @@ def test_image_reference_contract_all_fields_and_custom_preview(tmp_path, refere
     assert [p.name for p in (folder / 'images').iterdir()] == ['0001.png']
     options = {} if reference == '参考{filename}' else {'image_reference': reference}
     preview = build_export_preview(folder, **options)
+    assert build_export_preview(folder)['counts']['image_occurrences'] == 4
     images = [s for f in preview['questions'][0]['fields'] for s in f['segments'] if s['type'] == 'image']
     assert len(images) == 4
     output, summary = render_export_preview(folder, **options)

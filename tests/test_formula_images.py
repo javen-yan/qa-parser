@@ -84,7 +84,7 @@ def test_missing_renderer_returns_failure_without_download(monkeypatch):
 def test_zero_exit_with_blank_output_is_not_success(monkeypatch):
     monkeypatch.setenv('QA_PARSER_WMF2GD', 'fake-renderer')
     def run(command, **kwargs):
-        Path(command[command.index('-o') + 1]).write_bytes(raster(blank=True))
+        (Path(kwargs.get('cwd', '.')) / command[command.index('-o') + 1]).write_bytes(raster(blank=True))
         return SimpleNamespace(returncode=0, stderr=b'')
     monkeypatch.setattr('qa_parser.formula_images.subprocess.run', run)
     result = preview_to_png(wmf(), 'wmf')

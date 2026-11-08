@@ -106,7 +106,7 @@ def resource_evidence(app: Path, expected: str, inventory):
         listed.add(relative)
         target = frameworks / relative
         require(target.is_file() and target.stat().st_size == entry['bytes'] and shared.sha_file(target) == entry['sha256'], f'Bundled native resource missing or changed: {relative}')
-    actual = {path.relative_to(frameworks).as_posix() for folder in ('wmf', 'licenses')
+    actual = {path.relative_to(frameworks).as_posix() for folder in ('wmf/bin', 'wmf/fonts', 'licenses')
               for path in (frameworks / folder).rglob('*') if path.is_file()}
     require(listed == actual, 'Native resource manifest does not cover staged runtimes exactly')
     binaries = {}
@@ -119,7 +119,7 @@ def resource_evidence(app: Path, expected: str, inventory):
         if magic in MACHO_MAGIC:
             binaries[relative] = check_macho(path, expected)
     require('Contents/MacOS/' + name in binaries and 'Contents/Frameworks/wmf/bin/wmf2gd' in binaries, 'Required Mach-O binaries were not verified')
-    subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)], capture_output=True, text=True, timeout=30, check=True)
+    subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)], text=True, timeout=30, check=True)
     return executable, {'display_files_compared_to_source': checked_web, 'native_manifest_files': len(listed),
         'macho_binaries': binaries, 'signature_integrity': 'verified; not a notarization or customer Gatekeeper claim'}
 
@@ -142,7 +142,7 @@ def relocate_app(app: Path, output: Path, expected: str):
     subprocess.run(['/usr/bin/ditto', '-x', '-k', str(archive), str(destination)], check=True, timeout=180)
     relocated = destination / app.name
     require(app_inventory(relocated) == before, 'Unpacked application bytes, symlinks or modes differ')
-    subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(relocated)], capture_output=True, text=True, timeout=30, check=True)
+    subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(relocated)], text=True, timeout=30, check=True)
     evidence.update(archive=str(archive), zip_sha256=shared.sha_file(archive),
                     entries=len(before), symlinks=sum(v['kind'] == 'symlink' for v in before.values()),
                     relocation='ditto ZIP extracted to Chinese and space path; bytes, modes and symlinks preserved')

@@ -114,7 +114,7 @@ def _images(root, manifest):
 
 
 def build_export_preview(export_dir: Path, source_name: str = '', *,
-                         formula_delimiter: str = '$$', image_reference: str = '参考{filename}') -> dict:
+                         formula_delimiter: str = '$$', image_reference: str | None = None) -> dict:
     root = Path(export_dir).resolve()
     manifest = json.loads((root / 'report.json').read_text(encoding='utf-8'))
     if manifest.get('schema_version') != 1:
@@ -129,6 +129,8 @@ def build_export_preview(export_dir: Path, source_name: str = '', *,
     if not isinstance(formula_delimiter, str) or not 1 <= len(formula_delimiter) <= 16:
         raise ValueError('Invalid formula delimiter for display')
     pictures = _images(root, manifest)
+    if image_reference is None:
+        image_reference = manifest.get('image_reference', '参考{filename}')
     references = {image_reference.format(filename=name): asset for name, asset in pictures.items()}
     if len(references) != len(pictures) or any(not value for value in references):
         raise ValueError('Image reference format is ambiguous')

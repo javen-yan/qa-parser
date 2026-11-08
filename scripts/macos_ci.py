@@ -217,8 +217,15 @@ def main():
     run(command + [entry], log=build / 'pyinstaller.log')
     app = out / (APP_NAME + '.app')
     framework = app / 'Contents/Frameworks'
-    for name in ('wmf', 'licenses'):
-        shutil.copytree(stage / name, framework / name)
+    resources_dir = app / 'Contents/Resources'
+    shutil.copytree(stage / 'wmf', framework / 'wmf')
+    # Data under Frameworks is treated as code by codesign --deep and gets
+    # extended-attribute signatures, which a portable ZIP cannot retain.
+    # Keep data in Resources and preserve the runtime lookup via symlinks.
+    shutil.move(framework / 'wmf/fonts', resources_dir / 'wmf-fonts')
+    (framework / 'wmf/fonts').symlink_to('../../Resources/wmf-fonts', target_is_directory=True)
+    shutil.copytree(stage / 'licenses', resources_dir / 'licenses')
+    (framework / 'licenses').symlink_to('../Resources/licenses', target_is_directory=True)
     plist_file = app / 'Contents/Info.plist'
     with plist_file.open('rb') as stream:
         plist = plistlib.load(stream)
@@ -234,12 +241,11 @@ def main():
                               'sdk': subprocess.check_output(['/usr/bin/xcrun', '--show-sdk-version'], text=True).strip()},
                 'variant': 'light', 'real_reference_validation': 'not performed; private corpus not uploaded',
                 'customer_distribution': 'pending signing/notarization and target-environment validation'}
-    resources_dir = app / 'Contents/Resources'
     (resources_dir / 'build-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     run(['/usr/bin/codesign', '--force', '--deep', '--sign', '-', app])
     run(['/usr/bin/codesign', '--verify', '--deep', '--strict', app])
     files = [{'path': p.relative_to(framework).as_posix(), 'bytes': p.stat().st_size, 'sha256': sha(p)}
-             for name in ('wmf', 'licenses') for p in sorted((framework / name).rglob('*')) if p.is_file()]
+             for name in ('wmf/bin', 'wmf/fonts', 'licenses') for p in sorted((framework / name).rglob('*')) if p.is_file()]
     resources = {'schema_version': 1, 'platform': 'darwin', 'architecture': args.architecture, 'files': files}
     # Manifest addition requires signing again but does not mutate native content.
     (resources_dir / 'resources-manifest.json').write_text(json.dumps(resources, indent=2), encoding='utf-8')
