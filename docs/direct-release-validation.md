@@ -24,3 +24,7 @@
 本机公开回归 248 项通过、79 项明确排除、无意外 skip。真实`MathType公式化学2.docx`在本机以新格式导出 100 题，127 张图片均有相对资源，预览无缺图；证据在`outputs/image-reference-contract-real/`。真实 Word 未上传。
 
 Windows 云端环境为 Windows Server 2022 x64；Mac 云端目标为 macOS 15 ARM64/Intel。以上不能替代客户 Windows 11、断网非管理员、签名/公证、安全软件和目标系统导入验收。旧本地分发文件没有被本次构建覆盖。
+
+## 后续诊断（8015259）
+
+Mac 原生运行 `42447429693` 的 Python 栈和原生采样共同确认：冻结服务停在 `HTTPServer.server_bind → socket.getfqdn → gethostbyaddr`，等待 mDNS 反向查询。现改为 TCPServer 的 numeric loopback bind，明确设置 server_name/server_port，不进行反向 DNS；没有扩大监听范围。新增 DNS 不可用回归，完整公开回归 254 通过、79 明确排除。原生工作流 `42447683505` 正在验证此修复，结果仍以实际运行记录为准。
