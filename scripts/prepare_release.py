@@ -75,13 +75,19 @@ def assemble(artifacts, out, tag, commit):
 '''
     notes += ''.join(f"| {r['target']} | {r['filename']} | {r['bytes']} | `{r['sha256']}` |\n" for r in rows)
     notes += '''
+## 本版更新
+
+- 按原 Word 文件名输出同名 Excel 和图片目录，保留前导零、中文及空格；同名目录只放图片，说明和预览单独存放。
+- 混合公式输出：简单表达式及原子分式保留 LaTeX，复杂结构和同一单元格多下标组合优先使用可靠原图，否则离线重绘 PNG；无法可靠处理的题目明确进入复核。
+- Windows 与 Mac 共用分类、导出、资源编号和异常处理；原生 WebView 生成图片，资源随包提供。修复 Windows 系统编码、环境变量大小写，以及 Mac 退出清理和 Retina 快照比例问题。
+
 ## 使用方式
 
 完整解压对应平台ZIP。Windows进入“题库转换”文件夹双击EXE，保留_internal；Mac打开.app。无需安装Python、Office、MathType、Node或字体。选择题型→添加Word→转换→预览→打开结果包。不要单独复制EXE或HTML。
 
 ## 验证范围与限制
 
-每个平台分别原生构建，并对实际解压后的同一ZIP执行合成题目、图片/公式、WMF和原生窗口检查；开发核心与冻结程序结果比较通过。详细平台证据见release-manifest.json。
+每个平台分别原生构建，并对实际解压后的同一ZIP执行合成题目、图片/公式、WMF和原生窗口检查；开发核心与冻结程序结果比较通过。混合输出门槛同时覆盖简单公式保留、跨公式下标、图片引用、同名包布局、重复名拒绝和未知结构复核；开发态与冻结态结果一致。详细平台证据见release-manifest.json及对应源码构建的CI日志。
 
 真实9份题库未上传CI；不声称跨平台900/900。此云端轻量包没有可选LibreOffice原图引擎，复杂原图可能被明确隔离。Mac本地已验收原图完整版另行保留。Windows x86尚未支持，Windows ARM不在本次范围。
 

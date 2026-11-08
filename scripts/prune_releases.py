@@ -85,9 +85,19 @@ def prune(keep_id, expected_ids, receipt, *, apply=False, report_path=None):
     for old_id, old in before.items():
         if old_id == keep_id:
             continue
-        if not (old['draft'] or old['prerelease']):
-            raise ValueError('Historical selection contains another formal Release')
         old_owner, _ = release_owner(REPO, dict(old, draft=True))
+        if not (old['draft'] or old['prerelease']):
+            # Only an explicitly selected, older, already mirrored formal
+            # release may be retired after the new complete delivery passes.
+            old_version = re.fullmatch(r'v(\d+)\.(\d+)\.(\d+)', old_owner['tag'])
+            new_version = re.fullmatch(r'v(\d+)\.(\d+)\.(\d+)', owner['tag'])
+            old_marker = f"<!-- qa-parser-oss-delivery:{old_id}:{old_owner['commit']} -->"
+            if (old_id not in expected_ids or old_owner['mode'] != 'tag'
+                    or not old_version or not new_version
+                    or tuple(map(int, old_version.groups())) >= tuple(map(int, new_version.groups()))
+                    or old.get('assets') or old_marker not in old.get('body', '')):
+                raise ValueError('Historical formal Release is not an older verified OSS-only version')
+            source_tag(old_owner)
         if read_api(f"repos/{REPO}/actions/runs/{old_owner['run_id']}").get('status') != 'completed':
             raise ValueError('A historical Release producer is still running')
     report = {'schema_version': 1, 'keep_id': keep_id, 'version': owner['tag'], 'source_commit': owner['commit'],

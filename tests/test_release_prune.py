@@ -37,6 +37,19 @@ def test_exact_old_set_removed_source_and_formal_release_untouched(scenario,tmp_
     assert [endpoint for endpoint,method in calls if method=='DELETE']==[f'repos/{p.REPO}/releases/1',f'repos/{p.REPO}/releases/2']
     assert p.prune('10',{'1','2'},receipt,apply=True)['already_absent']==['1','2']
 
+
+@pytest.mark.parametrize('tag,mirrored,allowed', [('v0.2.9',True,True),('v0.3.0',True,False),('v0.4.0',True,False),('v0.2.9',False,False)])
+def test_retire_only_explicit_older_mirrored_formal_release(scenario,tag,mirrored,allowed):
+    p,rows,receipt,calls,active=scenario
+    owner=dict(schema_version=1,repository=p.REPO,commit='a'*40,run_id='1',mode='tag',tag=tag)
+    rows['1'].update(draft=False,prerelease=False,tag_name=tag,body=p.PREFIX+json.dumps(owner)+' -->')
+    if mirrored:rows['1']['body']+='<!-- qa-parser-oss-delivery:1:'+owner['commit']+' -->'
+    if allowed:
+        assert p.prune('10',{'1','2'},receipt,apply=True)['status']=='only-formal-release-retained'
+    else:
+        with pytest.raises(ValueError):p.prune('10',{'1','2'},receipt,apply=True)
+        assert not any(method=='DELETE' for _,method in calls)
+
 @pytest.mark.parametrize('failure',['active','unexpected','prerelease','attachments','hash'])
 def test_prune_failures_preserve_history(scenario,monkeypatch,failure):
     p,rows,receipt,calls,active=scenario
