@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: native-release-${{ github.event_name }}-${{ github.ref }}
+  group: qa-parser-release-lifecycle
   cancel-in-progress: false
 
 env:

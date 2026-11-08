@@ -51,8 +51,8 @@ def release_owner(repo, release):
     tag = release.get('tag_name', '')
     if owner.get('tag') != tag or release.get('target_commitish') != owner['commit']:
         raise ValueError('Release tag/source identity changed')
-    if release.get('draft'):
-        if owner.get('mode') != 'manual' or tag != f"candidate-{owner['commit'][:12]}-{owner['run_id']}":
+    if owner.get('mode') == 'manual':
+        if not release.get('draft') or tag != f"candidate-{owner['commit'][:12]}-{owner['run_id']}":
             raise ValueError('Only run-owned manual candidates can sync from a draft')
         channel = 'candidates'
     else:
@@ -83,7 +83,7 @@ def prepare(repo, release_id, targets, work, *, plan_only=False):
             if name not in current:
                 raise ValueError(f'Verified target asset missing: {name}')
     work.mkdir(parents=True, exist_ok=False)
-    if not release['draft']:
+    if owner['mode'] == 'tag':
         if 'release-manifest.json' not in current:
             raise ValueError('Published release lacks completed native manifest')
         path = work / 'release-manifest.json'
@@ -113,7 +113,7 @@ def prepare(repo, release_id, targets, work, *, plan_only=False):
                 and item.get('state') == 'uploaded' and item.get('digest') == 'sha256:' + data.get('zip_sha256', '')
                 and item.get('size') == data.get('bytes')):
             raise ValueError('Candidate metadata, source or server checksum gate failed')
-        filename = name if release['draft'] else f"qa-parser-{owner['tag']}-{target}-light.zip"
+        filename = name if owner['mode'] == 'manual' else f"qa-parser-{owner['tag']}-{target}-light.zip"
         archive = folder / filename
         if not plan_only:
             print(f'Downloading and verifying {target} from Release {release_id}', flush=True)
@@ -127,14 +127,14 @@ def prepare(repo, release_id, targets, work, *, plan_only=False):
         notes.write_text(f"题库转换 {owner['tag']} / {target}\n源码：{owner['commit']}\nRelease：{release['html_url']}\n"
                          '完整解压后运行，Windows 双击 EXE，Mac 打开 .app；保留运行时与许可证。\n'
                          '原生合成检查已通过；真实题库、客户电脑、签名公证及目标系统导入未验收。\n'
-                         + ('此为候选草稿，不是正式版。\n' if release['draft'] else ''), encoding='utf-8')
+                         + ('此为候选草稿，不是正式版。\n' if owner['mode'] == 'manual' else ''), encoding='utf-8')
         rows.append({'target': target, 'prefix': prefix + '/' + target, 'filename': filename,
                      'sha256': data['zip_sha256'], 'bytes': data['bytes'],
                      'files': [str(p) for p in (archive, metadata, checksum, notes)]})
     return {'schema_version': 1, 'status': 'planned' if plan_only else 'downloaded-and-verified',
             'repository': repo, 'release_id': str(release_id), 'release_url': release['html_url'],
             'draft': release['draft'], 'commit': owner['commit'], 'run_id': owner['run_id'],
-            'tag': owner['tag'], 'release_prefix': prefix + '/release', 'release_files': release_files, 'targets': rows}
+            'tag': owner['tag'], 'mode': owner['mode'], 'release_prefix': prefix + '/release', 'release_files': release_files, 'targets': rows}
 
 
 def abort_stale_uploads(bucket, key):

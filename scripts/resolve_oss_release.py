@@ -11,7 +11,7 @@ from sync_release_oss import release_owner, TARGETS
 def resolve(repo, run_id, commit):
     run = api(f'repos/{repo}/actions/runs/{run_id}')
     if not (run.get('status') == 'completed' and run.get('conclusion') == 'success'
-            and run.get('event') == 'workflow_dispatch' and run.get('head_branch') == 'main'
+            and ((run.get('event') == 'workflow_dispatch' and run.get('head_branch') == 'main') or (run.get('event') == 'push' and re.fullmatch(r'v\d+\.\d+\.\d+(?:-(?:rc|beta|alpha)\.\d+)?', run.get('head_branch', ''))))
             and run.get('head_sha') == commit and run.get('head_repository', {}).get('full_name') == repo
             and run.get('path') == '.github/workflows/release.yml'):
         raise ValueError('Only a successful native workflow dispatched from this repository main is trusted')
@@ -31,8 +31,11 @@ def resolve(repo, run_id, commit):
     if len(matches) != 1:
         raise ValueError('Expected exactly one owned candidate for this successful run')
     release = matches[0]
-    archived = not release['draft'] and release.get('prerelease') and f"<!-- qa-parser-oss-delivery:{release['id']}:{commit} -->" in release.get('body', '')
-    if not release['draft'] and not archived:
+    archived = not release['draft'] and f"<!-- qa-parser-oss-delivery:{release['id']}:{commit} -->" in release.get('body', '')
+    owner, _ = release_owner(repo, dict(release, draft=True))
+    if run['event'] == 'push' and (owner['mode'] != 'tag' or owner['tag'] != run['head_branch']):
+        raise ValueError('Tag-triggered run must resolve the exact version Release')
+    if not release['draft'] and not archived and owner['mode'] != 'tag':
         raise ValueError('Candidate is published without this tool mirror record')
     return {'release_id': str(release['id']), 'skip': 'true' if archived else 'false'}
 

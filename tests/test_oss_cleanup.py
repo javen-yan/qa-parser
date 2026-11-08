@@ -113,3 +113,29 @@ def test_only_transient_reads_retry_with_a_bound(monkeypatch,message,retries):
     def fail(*args):calls.append(args);raise RuntimeError(message)
     with pytest.raises(RuntimeError):c.retry_read(fail,'read-only-endpoint')
     assert len(calls)==retries
+
+
+def test_formal_release_preserves_stable_state_and_removes_duplicate_archive_aliases(setup):
+    c,repo,release,receipt,current,run,calls=setup
+    owner=json.loads(release['body'].split(':',1)[1].split(' -->')[0])
+    owner.update(mode='tag',tag='v0.3.0')
+    release.update(draft=False,prerelease=False,tag_name='v0.3.0',body='<!-- qa-parser-release-owner:'+json.dumps(owner)+' -->')
+    run['conclusion']='success';receipt.update(draft=False,targets=[],release_uploads=[]);current.clear()
+    def evidence(name,folder):
+        key='qa-parser/releases/v0.3.0/'+folder+'/'+name
+        item=dict(key=key,url='https://maiya-reader.oss-cn-beijing.aliyuncs.com/'+key,sha256='b'*64,bytes=12)
+        current[name]=dict(id=len(current)+1,state='uploaded',digest='sha256:'+'b'*64,size=12)
+        return item
+    for target in c.TARGETS:
+        name=f'qa-parser-v0.3.0-{target}-light.zip'
+        upload=evidence(name,target)
+        evidence(f'qa-parser-{target}-candidate.zip',target)
+        meta=evidence(f'release-metadata-{target}.json',target)
+        receipt['targets'].append(dict(target=target,filename=name,uploads=[upload,meta]))
+    for name in ('release-manifest.json','SHA256SUMS.txt','RELEASE_NOTES.md'):
+        receipt['release_uploads'].append(evidence(name,'release'))
+    result=c.cleanup(repo,'9',receipt,apply=True)
+    assert len(result['removed_assets'])==12 and not current
+    assert release['draft'] is False and release['prerelease'] is False
+    assert release['make_latest']=='true' and '正式发布。' in release['body']
+    assert not any(endpoint.endswith('/releases/9') and method=='DELETE' for endpoint,method in calls)

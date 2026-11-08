@@ -60,7 +60,9 @@ def test_release_fails_before_output_on_incomplete_evidence(tmp_path, mutation):
     assert not (tmp_path / 'out').exists()
 
 
-def test_stable_release_not_approved_and_version_mismatch(tmp_path):
+def test_stable_release_not_approved_and_version_mismatch(tmp_path,monkeypatch):
+    original=release.json.loads
+    monkeypatch.setattr(release.json,"loads",lambda value:dict(original(value),stable_release_approved=False) if "stable_release_approved" in value else original(value))
     with pytest.raises(ValueError, match='Stable publication blocked'):
         release.assemble(tmp_path, tmp_path / 'out', 'v' + VERSION, 'abc')
     with pytest.raises(ValueError, match='match pyproject'):
@@ -79,3 +81,10 @@ def test_remote_asset_mismatch_never_publishes_draft(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match='Incomplete release'):
         publisher.publish(tmp_path, 'example/test')
     assert not any(c[:2] == ('release', 'edit') for c in calls)
+
+
+def test_explicitly_approved_stable_version_keeps_real_acceptance_limits(tmp_path):
+    result=release.assemble(inputs(tmp_path),tmp_path/'stable','v'+VERSION,'abc')
+    assert not result['prerelease']
+    notes=(tmp_path/'stable/RELEASE_NOTES.md').read_text()
+    assert '正式发布' in notes and '仍需验收' in notes

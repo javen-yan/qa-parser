@@ -3,7 +3,6 @@ on:
   workflow_run:
     workflows: [Native release via owned draft]
     types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       release_id:
@@ -27,9 +26,12 @@ permissions:
   # Optional cleanup removes verified attachments only; retains Release and source.
   contents: write
   actions: read
+concurrency:
+  group: qa-parser-release-lifecycle
+  cancel-in-progress: false
 jobs:
   resolve:
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_dispatch')
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'workflow_dispatch' || github.event.workflow_run.event == 'push'))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:

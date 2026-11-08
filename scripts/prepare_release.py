@@ -2,8 +2,8 @@
 """Assemble only a complete set of successful native candidates for a tag.
 
 No publication/network actions. The release job separately uploads a draft and
-publishes only after all assets are present. Stable release is fail-closed until
-customer acceptance is recorded in the version-controlled policy.
+publishes only after all assets are present. Stable publication requires explicit approval in the version-controlled policy;
+customer acceptance is tracked separately and disclosed in release notes.
 """
 import argparse
 import hashlib
@@ -85,7 +85,7 @@ def assemble(artifacts, out, tag, commit):
 
 真实9份题库未上传CI；不声称跨平台900/900。此云端轻量包没有可选LibreOffice原图引擎，复杂原图可能被明确隔离。Mac本地已验收原图完整版另行保留。Windows x86尚未支持，Windows ARM不在本次范围。
 
-客户Windows11断网/非管理员/安全策略、Mac签名公证及目标APP导入渲染仍需验收。程序仅从本机读取题目，运行时不下载依赖。请同时保留包内licenses和使用说明；预发布不构成正式客户环境支持承诺。
+客户Windows11断网/非管理员/安全策略、Mac签名公证及目标APP导入渲染仍需验收。程序仅从本机读取题目，运行时不下载依赖。请同时保留包内licenses和使用说明；发布状态不代表客户环境已经验收。
 '''
     (out / 'RELEASE_NOTES.md').write_text(notes, encoding='utf-8')
     return manifest
