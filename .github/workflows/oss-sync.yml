@@ -1,0 +1,56 @@
+name: Optional verified Release to OSS
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Existing owned GitHub Release numeric ID
+        required: true
+        type: string
+      target:
+        type: choice
+        default: windows-x64
+        options: [windows-x64, macos-arm64, macos-x86_64, all]
+      plan_only:
+        description: Validate metadata and destination without uploading
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: oss-${{ inputs.release_id }}-${{ inputs.target }}
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - name: Verify configuration and sync selected native candidates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          TARGET: ${{ inputs.target }}
+          PLAN_ONLY: ${{ inputs.plan_only }}
+          ALIYUN_OSS_ACCESS_KEY_ID: ${{ secrets.ALIYUN_OSS_ACCESS_KEY_ID }}
+          ALIYUN_OSS_ACCESS_KEY_SECRET: ${{ secrets.ALIYUN_OSS_ACCESS_KEY_SECRET }}
+          ALIYUN_OSS_BUCKET: ${{ secrets.ALIYUN_OSS_BUCKET }}
+          ALIYUN_OSS_REGION: ${{ secrets.ALIYUN_OSS_REGION }}
+          ALIYUN_OSS_ENDPOINT: ${{ secrets.ALIYUN_OSS_ENDPOINT }}
+          ALIYUN_OSS_PUBLIC_BASE_URL: ${{ secrets.ALIYUN_OSS_PUBLIC_BASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "$PLAN_ONLY" = true ]; then
+            args+=(--plan-only)
+          else
+            PYTHONPATH=scripts python -c 'from sync_release_oss import settings; import os; settings(os.environ)'
+            python -m pip install --require-hashes -r requirements-macos-bootstrap.lock
+            python -m pip install --no-build-isolation --require-hashes -r requirements-oss.lock
+          fi
+          python scripts/sync_release_oss.py --release-id "$RELEASE_ID" --target "$TARGET" --work "$RUNNER_TEMP/oss-sync" "${args[@]}"

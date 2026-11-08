@@ -29,4 +29,4 @@
 
 公开合成回归→构建→架构与原生库依赖检查→ZIP解压至中文空格路径→冻结CLI与开发核心语义比较→原生WMF→Cocoa真实窗口字体/公式检查→程序目录未写入检查。产物就是经过上述解压运行的同一ZIP，附SHA256与平台JSON。
 
-普通`macos-portable.yml`将两个候选分别作为Actions artifact上传，保留14天。`release.yml`则传入`upload-artifacts: 'false'`，关闭候选和诊断artifact上传，由同一runner直接上传本次独占Draft Release；不依赖普通工作流或其额度。发布编排等待两个Mac架构及Windows全通过后统一处理，不得用单平台成功发布残缺正式版本。手动运行始终保留草稿。
+普通`macos-portable.yml`默认仅运行检查并保留日志；只有显式设置 `upload_artifacts=true` 才上传候选及诊断 artifact（需可用额度），保留14天。`release.yml`则传入`upload-artifacts: 'false'`，关闭候选和诊断artifact上传，由同一runner直接上传本次独占Draft Release；不依赖普通工作流或其额度。发布编排等待两个Mac架构及Windows全通过后统一处理，不得用单平台成功发布残缺正式版本。手动运行始终保留草稿。

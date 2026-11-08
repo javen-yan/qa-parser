@@ -81,3 +81,5 @@ CLI还提供`parse`、`validate`、`export`、`batch`和`config`。退出码：0
 | `build/`、`.venv/` | 可再生成的开发/构建目录；不入库 |
 
 仓库不包含原始Word/Excel、原始公式WMF、客户端数据、历史诊断和构建缓存。公开合成测试会列出未执行的私有样本检查，意外跳过会报错。
+
+可选下载镜像：见 [OSS 分发](docs/oss-delivery.md)，默认只做计划检查，实际上传需仓库 Secrets。

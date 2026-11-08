@@ -1,0 +1,2 @@
+# CI-only distribution client; never bundled with the desktop app.
+oss2==2.19.1
