@@ -177,7 +177,7 @@ def main():
     for workbook in sorted((out/'extracted').glob('*/questions.xlsx')):
         for row in read_xlsx(workbook):
             for cell in row:
-                for image in re.findall(r'(?:请)?参考 ?(\d{4,}\.[A-Za-z0-9]+)',cell):
+                for image in re.findall(r'(?:请)?参考 ?((?:aaa)?\d{4,}\.[A-Za-z0-9]+)',cell):
                     check((workbook.parent/'images'/image).is_file(),'Unresolved extracted Excel image reference');refs+=1
     # Exercise the actual vendored runtime without a browser/network dependency.
     save(out/'known-formulas.json',latex)
