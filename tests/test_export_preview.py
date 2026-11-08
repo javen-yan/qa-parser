@@ -19,7 +19,7 @@ def exported(tmp_path, *, image=False):
     task['source']['name'] = '显示 <script>bad()</script>.docx'
     task['questions'][0]['number'] = '7'
     task['questions'][0]['stem'] = '比较 $$x_1$$ 与图；<script>alert(1)</script>'
-    task['questions'][0]['options']['A'] = '参考0001.png' if image else '甲'
+    task['questions'][0]['options']['A'] = '参考aaa0001.png)' if image else '甲'
     failed = deepcopy(task['questions'][0])
     failed.update(id='q2', number='9', stem='不得出现在题目正文', issues=[{'code': 'formula_review'}])
     task['questions'].append(failed)
@@ -27,9 +27,9 @@ def exported(tmp_path, *, image=False):
         stream = io.BytesIO()
         Image.new('RGB', (12, 8), 'green').save(stream, format='PNG')
         data = stream.getvalue()
-        (tmp_path / '0001.png').write_bytes(data)
-        task['questions'][0]['asset_filenames'] = ['0001.png']
-        task['assets'] = [{'filename': '0001.png', 'path': '0001.png', 'sha256': hashlib.sha256(data).hexdigest()}]
+        (tmp_path / 'aaa0001.png').write_bytes(data)
+        task['questions'][0]['asset_filenames'] = ['aaa0001.png']
+        task['assets'] = [{'filename': 'aaa0001.png', 'path': 'aaa0001.png', 'sha256': hashlib.sha256(data).hexdigest()}]
     report = export_task(task, tmp_path, tmp_path / 'export', allow_partial=True)
     return tmp_path / 'export', report
 
@@ -63,10 +63,10 @@ def test_relative_image_matches_manifest_and_tampering_fails(tmp_path):
     folder, _ = exported(tmp_path, image=True)
     output, summary = render_export_preview(folder)
     document = html.fromstring(output)
-    assert document.xpath('//img/@src') == ['images/0001.png']
+    assert document.xpath('//img/@src') == ['images/aaa0001.png']
     assert summary['image_occurrences'] == 1 and summary['image_placeholders'] == 0
     assert 'data:image/png' not in output  # No repeated image base64 payloads.
-    (folder / 'images/0001.png').write_bytes(b'changed')
+    (folder / 'images/aaa0001.png').write_bytes(b'changed')
     with pytest.raises(ValueError, match='integrity mismatch'):
         build_export_preview(folder)
 
@@ -102,10 +102,10 @@ def test_unsupported_real_image_is_explicit_placeholder(tmp_path):
     stream = io.BytesIO()
     Image.new('RGB', (5, 5), 'red').save(stream, format='TIFF')
     data = stream.getvalue()
-    (tmp_path / '0001.tiff').write_bytes(data)
-    task['questions'][0]['stem'] = '图示参考0001.tiff；其余文字保留'
-    task['questions'][0]['asset_filenames'] = ['0001.tiff']
-    task['assets'] = [{'filename': '0001.tiff', 'path': '0001.tiff', 'sha256': hashlib.sha256(data).hexdigest()}]
+    (tmp_path / 'aaa0001.tiff').write_bytes(data)
+    task['questions'][0]['stem'] = '图示参考aaa0001.tiff)；其余文字保留'
+    task['questions'][0]['asset_filenames'] = ['aaa0001.tiff']
+    task['assets'] = [{'filename': 'aaa0001.tiff', 'path': 'aaa0001.tiff', 'sha256': hashlib.sha256(data).hexdigest()}]
     export_task(task, tmp_path, tmp_path / 'export')
     preview = build_export_preview(tmp_path / 'export')
     assert preview['counts']['image_placeholders'] == 1
@@ -127,11 +127,11 @@ def test_reference_choice_reads_real_export_and_all_hundred_rows(tmp_path):
     assert preview['counts']['image_placeholders'] == 0
 
 
-@pytest.mark.parametrize('reference', ['参考{filename}', '请参考 {filename}', '[图片:{filename}]'])
+@pytest.mark.parametrize('reference', ['参考{filename})', '参考{filename}', '请参考 {filename}', '[图片:{filename}]'])
 def test_image_reference_contract_all_fields_and_custom_preview(tmp_path, reference):
     from qa_parser.config import DEFAULT_CONFIG, load_config
     from test_exporter import cells
-    assert DEFAULT_CONFIG['image_reference'] == '参考{filename}'
+    assert DEFAULT_CONFIG['image_reference'] == '参考{filename})'
     configured = load_config(Path(__file__).resolve().parents[1] / 'config/default.json')
     assert configured['image_reference'] == DEFAULT_CONFIG['image_reference']
     task = sample_task()
@@ -139,25 +139,25 @@ def test_image_reference_contract_all_fields_and_custom_preview(tmp_path, refere
     stream = io.BytesIO()
     Image.new('RGB', (12, 8), 'green').save(stream, format='PNG')
     data = stream.getvalue()
-    (tmp_path / '0001.png').write_bytes(data)
-    text = reference.format(filename='0001.png')
+    (tmp_path / 'aaa0001.png').write_bytes(data)
+    text = reference.format(filename='aaa0001.png')
     question = task['questions'][0]
     for field in ('stem', 'answer', 'analysis'):
         question[field] = '前' + text + '后'
     question['options']['A'] = text
-    question['asset_filenames'] = ['0001.png']
-    task['assets'] = [{'filename': '0001.png', 'path': '0001.png', 'sha256': hashlib.sha256(data).hexdigest()}]
+    question['asset_filenames'] = ['aaa0001.png']
+    task['assets'] = [{'filename': 'aaa0001.png', 'path': 'aaa0001.png', 'sha256': hashlib.sha256(data).hexdigest()}]
     folder = tmp_path / 'export'
     export_task(task, tmp_path, folder)
     _, values = cells(folder / 'questions.xlsx')
     assert all(values[column + '2'] == '前' + text + '后' for column in ('D', 'F', 'G'))
     assert values['I2'] == text and 'A．' + text in values['E2']
-    assert [p.name for p in (folder / 'images').iterdir()] == ['0001.png']
-    options = {} if reference == '参考{filename}' else {'image_reference': reference}
+    assert [p.name for p in (folder / 'images').iterdir()] == ['aaa0001.png']
+    options = {} if reference == '参考{filename})' else {'image_reference': reference}
     preview = build_export_preview(folder, **options)
     assert build_export_preview(folder)['counts']['image_occurrences'] == 4
     images = [s for f in preview['questions'][0]['fields'] for s in f['segments'] if s['type'] == 'image']
     assert len(images) == 4
     output, summary = render_export_preview(folder, **options)
-    assert html.fromstring(output).xpath('//img/@src') == ['images/0001.png'] * 4
+    assert html.fromstring(output).xpath('//img/@src') == ['images/aaa0001.png'] * 4
     assert summary['image_occurrences'] == 4

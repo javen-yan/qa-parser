@@ -4,10 +4,12 @@ No filenames outside the fixed runtime set, environment values, exception
 messages, download URLs, usernames or document data enter the JSON report.
 """
 import json
+import hashlib
 import os
 from pathlib import Path
 import subprocess
 import sys
+import re
 
 RELEASE_HASHES = {
     '_internal/clr_loader/ffi/dlls/amd64/ClrLoader.dll': '07f62bcb1b70320f221ffb2cfc5ce6133815195f3e7cdb8d833222506188c2ac',
@@ -18,6 +20,7 @@ RELEASE_HASHES = {
 
 POWERSHELL = r'''
 $ErrorActionPreference='Stop';
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1');
 $root=$env:QA_DIAG_APP_DIR; $dest=$env:QA_DIAG_REPORT;
 function Failures($e) {
   $items=@(); for($i=0;$e -and $i -lt 8;$i++) {
@@ -28,6 +31,7 @@ function Failures($e) {
 $result=@{schema_version=1;probe='windows-startup/1';read_only=$true;file_reference_version='v0.3.1';
   process_64bit=[Environment]::Is64BitProcess;os_64bit=[Environment]::Is64BitOperatingSystem;
   clr_version=[Environment]::Version.ToString();files=@();
+  powershell_version=$PSVersionTable.PSVersion.ToString();
   pythonnet_runtime_override_present=([bool]$env:PYTHONNET_RUNTIME)};
 try {
   $os=Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion';
@@ -44,8 +48,13 @@ foreach($property in $expected.PSObject.Properties) {
   $relative=$property.Name; $path=Join-Path $root $relative;
   $row=@{relative_path=$relative;exists=(Test-Path -LiteralPath $path -PathType Leaf);zone_id=$null};
   if($row.exists) {
-    try {$row.sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower();
-      $row.matches_v031=($row.sha256 -eq $property.Value)} catch {$row.hash_error=Failures $_.Exception};
+    try {
+      $stream=[IO.File]::OpenRead($path); $hasher=[Security.Cryptography.SHA256]::Create();
+      try {$row.sha256=([BitConverter]::ToString($hasher.ComputeHash($stream))).Replace('-','').ToLower()}
+      finally {$stream.Dispose();$hasher.Dispose()};
+      $row.matches_v031=($row.sha256 -eq $property.Value);
+      $row.authenticode_status=(Get-AuthenticodeSignature -LiteralPath $path).Status.ToString();
+    } catch {$row.hash_error=Failures $_.Exception};
     try {
       $zone=Get-Content -LiteralPath $path -Stream Zone.Identifier -ErrorAction Stop;
       foreach($line in $zone) {if($line -match '^ZoneId=(\d+)$') {$row.zone_id=[int]$Matches[1]}};
@@ -71,8 +80,10 @@ def run(root: Path, output: Path) -> dict:
     if sys.platform != 'win32':
         raise RuntimeError('Windows-only startup diagnostic')
     executable = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+    env = {k:v for k,v in os.environ.items() if k.upper() != 'PSMODULEPATH'}
+    env.update(QA_DIAG_APP_DIR=str(root.resolve()), QA_DIAG_REPORT=str(output.resolve()))
     result = subprocess.run([str(executable), '-NoProfile', '-NonInteractive', '-Command', POWERSHELL],
-                            env=dict(os.environ, QA_DIAG_APP_DIR=str(root.resolve()), QA_DIAG_REPORT=str(output.resolve())),
+                            env=env,
                             capture_output=True, timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
     # Never persist raw PowerShell output: it may contain customer paths.
     if result.returncode:
@@ -89,6 +100,7 @@ def customer_command() -> str:
     code = code.replace("ConvertFrom-Json '" + encoded + "'", 'ConvertFrom-Json $env:QA_DIAG_HASHES')
     assert '"' not in code and '%' not in code
     command = ('@echo off\r\nsetlocal\r\n'
+               'set "PSModulePath="\r\n'
                'set "QA_DIAG_APP_DIR=%~dp0"\r\n'
                'set "QA_DIAG_REPORT=%LOCALAPPDATA%\\QA Parser\\diagnostics\\startup-diagnostic.json"\r\n'
                'set QA_DIAG_HASHES=' + encoded + '\r\n'
@@ -105,7 +117,77 @@ def explanation(report: dict) -> str:
     marked = any(f.get('zone_id') in (3, 4) for f in report.get('files', []))
     if blocked and marked:
         return ('已检测到 Internet 来源标记，并复现 .NET 程序集加载被阻止。'
-                '请先核对下载 ZIP 的 SHA-256；确认来自正式下载地址后，在 ZIP 属性中解除锁定，'
-                '再完整解压到一个新文件夹。程序不会自动解除任何文件的安全标记。')
+                '本次未能完成受限自动恢复，诊断已保存。请将诊断报告交给技术支持；'
+                '无需安装 Python、修改文件夹名称或关闭安全软件。')
     return ('Windows 窗口运行时初始化失败，原因尚未确认。'
             '请提供诊断报告以核对程序集、.NET Framework 和来源标记；无需先安装 Python 或修改文件夹名称。')
+
+
+def zone_id(path: Path):
+    try:
+        with Path(str(path) + ':Zone.Identifier').open('r', encoding='utf-8-sig') as stream:
+            text = stream.read(4096)
+        match = re.search(r'^ZoneId=(\d+)\s*$', text, re.M)
+        return int(match[1]) if match else None
+    except FileNotFoundError:
+        return None
+
+
+def recovery_plan(report: dict) -> list[str]:
+    """Require positive loading-error, whole allowlist hash, zone and signature evidence."""
+    rows = report.get('files', [])
+    if len(rows) != len(RELEASE_HASHES) or {r.get('relative_path') for r in rows} != set(RELEASE_HASHES):
+        return []
+    if not any(e.get('hresult') == '0x80131515' for e in report.get('assembly_probe', {}).get('errors', [])):
+        return []
+    if any(r.get('sha256') != RELEASE_HASHES[r['relative_path']] or r.get('zone_id') not in (None, 0, 1, 2, 3) for r in rows):
+        return []
+    marked = [r for r in rows if r.get('zone_id') == 3]
+    for row in rows:
+        allowed = {'Valid'} if '/webview/' in row['relative_path'] else {'Valid', 'NotSigned'}
+        if row.get('authenticode_status') not in allowed:
+            return []
+    return [r['relative_path'] for r in marked]
+
+
+def auto_recover(root: Path, output: Path):
+    """Recover this pinned distribution's Internet-marked managed components only.
+
+    No policy/registry changes, recursive unblocking, remote-load switch, or
+    recovery for changed binaries, restricted zones, signatures or permissions.
+    """
+    if sys.platform != 'win32':
+        return
+    root = root.absolute()
+    record = {'status': 'automatic_recovery_failed', 'changed': []}
+    try:
+        if not any(zone_id(root / name) in (3, 4) for name in RELEASE_HASHES):
+            return
+        before = run(root, output)
+        plan = recovery_plan(before)
+        record = {'status': 'not_automatically_recoverable', 'changed': [], 'before': before}
+        for name in plan:
+            path = root / name
+            # Refuse redirects outside or within this private package boundary.
+            if any(p.is_symlink() or getattr(p.stat(), 'st_file_attributes', 0) & 0x400
+                   for p in [path, *list(path.parents)[:len(Path(name).parts)]]):
+                raise PermissionError('Package contains a reparse point')
+            with path.open('rb') as stream:
+                if hashlib.file_digest(stream, 'sha256').hexdigest() != RELEASE_HASHES[name]:
+                    raise ValueError('Component changed after diagnostic')
+            if zone_id(path) != 3:
+                raise ValueError('Provenance changed after diagnostic')
+            Path(str(path) + ':Zone.Identifier').unlink()
+            record['changed'].append(name)
+        if plan:
+            after = run(root, output)
+            record['after'] = after
+            if after.get('assembly_probe', {}).get('status') == 'loaded':
+                record['status'] = 'recovered_verified_internet_mark'
+        output.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding='utf-8')
+    except Exception as error:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        record.update(status='automatic_recovery_failed', error_type=type(error).__name__)
+        output.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding='utf-8')
+        # Do not escalate permissions or change security policy. Normal startup
+        # may still work; if not, the native error UI reports this limitation.

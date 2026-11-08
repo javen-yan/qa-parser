@@ -119,6 +119,9 @@ def _main(argv=None) -> int:
         report.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
         return 0 if result['status'] == 'converted' else 1
     smoke = Path(args[1]).resolve() if len(args) == 2 and args[0] == '--desktop-smoke' else None
+    if sys.platform == 'win32' and getattr(sys, 'frozen', False):
+        from .startup_diagnostics import auto_recover
+        auto_recover(Path(sys.executable).parent, user_data_directory() / 'diagnostics/startup-recovery.json')
     import webview
 
     runtime = configure_windows_runtime(webview)

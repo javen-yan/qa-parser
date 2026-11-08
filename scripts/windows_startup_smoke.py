@@ -39,6 +39,17 @@ def main():
         target=out/'frozen-marked.json'
         result=subprocess.run([str(exe),'--diagnose-startup',str(target)],timeout=40)
         assert result.returncode==0 and json.loads(target.read_text(encoding='utf-8-sig'))['assembly_probe']['status']=='failed'
+        # The normal frozen startup must repair only verified package provenance
+        # and open its real native window without any customer intervention.
+        target=out/'automatic-window.json'
+        result=subprocess.run([str(exe),'--desktop-smoke',str(target)],timeout=90)
+        assert result.returncode==0 and target.is_file(), 'Automatic recovery/window failed'
+        recovery_path=Path(os.environ['LOCALAPPDATA'])/'QA Parser/diagnostics/startup-recovery.json'
+        recovery=json.loads(recovery_path.read_text(encoding='utf-8'))
+        assert recovery['status']=='recovered_verified_internet_mark',recovery
+        assert recovery['changed']==['_internal/pythonnet/runtime/Python.Runtime.dll'],recovery
+        assert not stream.exists()
+        assert all(row['matches_v031'] for row in recovery['after']['files'])
     finally:
         stream.unlink(missing_ok=True)
     restored=run(root,out/'restored.json')
@@ -51,6 +62,7 @@ def main():
     assert json.loads(standalone.read_text(encoding='utf-8-sig'))['assembly_probe']['status']=='loaded'
     report={'status':'passed','baseline':baseline,'marked':marked,'restored':restored,
             'outer_error_reproduced':True,'standalone_command':'passed','frozen_diagnostic':'passed',
+            'automatic_recovery':recovery,
             'customer_root_cause':'unconfirmed_without_customer_report'}
     (out/'summary.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
     print('STARTUP_DIAGNOSTIC_REPORT '+json.dumps(report,ensure_ascii=False),flush=True)

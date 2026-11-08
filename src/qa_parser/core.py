@@ -112,7 +112,7 @@ def _prepare_blocks(document: dict, root: Path, config: dict):
                             entry["fallback_error"] = image_result.get("reason", "Original preview conversion failed")
                         else:
                             iid = f"I{len(assets)+1:06d}"
-                            filename = f"{len(assets)+1:04d}.png"
+                            filename = f"aaa{len(assets)+1:04d}.png"
                             image_resource = _save_bytes(root, f"assets/{filename}", image_result["png"])
                             assets.append({"id": iid, "filename": filename, "extension": "png", "location": loc,
                                            "origin": "formula_preview", "formula_id": fid,
@@ -131,7 +131,7 @@ def _prepare_blocks(document: dict, root: Path, config: dict):
                 ext = str(token.get("extension", "bin")).lstrip(".").lower()
                 if not re.fullmatch("[a-z0-9]{1,8}", ext):
                     ext = "bin"
-                filename = f"{len(assets)+1:04d}.{ext}"
+                filename = f"aaa{len(assets)+1:04d}.{ext}"
                 resource = _save_bytes(root, f"assets/{filename}", token["data"])
                 assets.append({"id": iid, "filename": filename, "extension": ext, "location": loc, "review_reason": token.get("review_reason", ""), **resource})
                 converted["tokens"].append({"kind": "image", "id": iid, "location": loc})

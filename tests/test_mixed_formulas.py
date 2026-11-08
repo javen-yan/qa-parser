@@ -70,7 +70,7 @@ def test_field_context_mixed_export_and_reload_binding(tmp_path,monkeypatch):
     task,root=load_task(tmp_path/'task')
     q=task['questions'][0]
     assert r'$$R=\frac{U}{I}$$' in q['analysis']
-    assert '参考0001.png与参考0002.png' in q['analysis']
+    assert '参考aaa0001.png)与参考aaa0002.png)' in q['analysis']
     assert [f['status'] for f in task['formulas']]==['converted','image','image']
     assert len({a['filename'] for a in task['assets']})==2
     assert validate_task(task,root)['passed']==1
@@ -136,7 +136,7 @@ def test_reliable_original_preview_precedes_rerender_and_keeps_resource_order(tm
     monkeypatch.setattr('qa_parser.formula_raster.render_formulas',native)
     blocks=[{'tokens':[{'kind':'image','id':'I000001'},{'kind':'formula','id':'F000001'}]}]
     apply_mixed_formulas([q],[f],assets,blocks,tmp_path,{'choice_columns':[]})
-    assert [a['filename'] for a in assets]==['0001.jpg','0002.png']
+    assert [a['filename'] for a in assets]==['aaa0001.jpg','aaa0002.png']
     assert f['status']=='image' and assets[1]['origin']=='formula_preview'
     assert assets[1]['source_preview_sha256']==digest(preview)
 

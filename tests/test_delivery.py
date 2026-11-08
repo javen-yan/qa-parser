@@ -58,10 +58,10 @@ def image_export(root, color):
     data = io.BytesIO()
     Image.new('RGB', (2, 2), color).save(data, 'PNG')
     image = data.getvalue()
-    (root / '0001.png').write_bytes(image)
+    (root / 'aaa0001.png').write_bytes(image)
     task = sample_task()
-    task['questions'][0]['options']['A'] = '图示，参考0001.png'
-    task['assets'] = [{'filename': '0001.png', 'path': '0001.png', 'sha256': hashlib.sha256(image).hexdigest()}]
+    task['questions'][0]['options']['A'] = '图示，参考aaa0001.png)'
+    task['assets'] = [{'filename': 'aaa0001.png', 'path': 'aaa0001.png', 'sha256': hashlib.sha256(image).hexdigest()}]
     export_task(task, root, root / 'export')
     # Distractors must never be recursively copied into customer ZIP.
     (root / 'export/private.log').write_text('secret diagnostics')
@@ -84,9 +84,9 @@ def test_unpacked_excel_references_independent_images_and_only_manifest_payload(
         folder = tmp_path / 'unpacked' / (letter + ' 中文')
         with ZipFile(folder.with_suffix('.xlsx')) as z:
             xml = ET.fromstring(z.read('xl/worksheets/sheet1.xml'))
-            assert '参考0001.png' in ''.join(xml.itertext())
-        assert (folder / '0001.png').read_bytes() == expected
-        with Image.open(folder / '0001.png') as image:
+            assert '参考aaa0001.png)' in ''.join(xml.itertext())
+        assert (folder / 'aaa0001.png').read_bytes() == expected
+        with Image.open(folder / 'aaa0001.png') as image:
             image.verify()
 
 
@@ -116,7 +116,7 @@ def test_existing_delivery_is_not_replaced(tmp_path):
 
 def test_tampered_export_image_prevents_final_package(tmp_path):
     image_export(tmp_path / 'input', 'red')
-    (tmp_path / 'input/export/images/0001.png').write_bytes(b'changed')
+    (tmp_path / 'input/export/images/aaa0001.png').write_bytes(b'changed')
     row = {'name': 'x.docx', 'message': 'success', 'total': 1, 'passed': 1, 'quarantined': 0,
            'export': str(tmp_path / 'input/export')}
     snapshot = {'message': 'success', 'total_files': 1, 'passed': 1, 'quarantined': 0, 'files': [row]}
@@ -168,9 +168,9 @@ def test_numeric_documents_keep_exact_names_and_separate_images(tmp_path):
                                'quarantined': 0, 'files': rows}, tmp_path / 'final')
     with ZipFile(result['delivery']) as z:
         for name, expected in zip(['01', '10'], images):
-            assert z.read(name + '/0001.png') == expected
+            assert z.read(name + '/aaa0001.png') == expected
             with ZipFile(io.BytesIO(z.read(name + '.xlsx'))) as workbook:
-                assert '参考0001.png' in workbook.read('xl/worksheets/sheet1.xml').decode()
+                assert '参考aaa0001.png)' in workbook.read('xl/worksheets/sheet1.xml').decode()
             assert not any(p.startswith(name + '/') and p.endswith(('.txt', '.html')) for p in z.namelist())
         assert not any('/images/' in p or p.endswith('questions.xlsx') for p in z.namelist())
 
