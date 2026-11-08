@@ -93,7 +93,9 @@ def native_dependencies(build, arch, cache):
         raise RuntimeError('Runner CMake is missing (build tool, never a customer prerequisite)')
     # Hide Homebrew pkg-config and unrelated native headers from configure.
     env = dict(os.environ, PATH=str(prefix / 'bin') + ':/usr/bin:/bin:/usr/sbin:/sbin',
-               CC=clang, CXX=clang + '++', PKG_CONFIG='/usr/bin/false',
+               # FreeType's apinames host tool invokes CC without CPPFLAGS.
+               # SDKROOT also covers those auxiliary compiler invocations.
+               SDKROOT=sdk, CC=clang, CXX=clang + '++', PKG_CONFIG='/usr/bin/false',
                LIBPNG_CFLAGS=f'-I{prefix}/include/libpng16', LIBPNG_LIBS=f'-L{prefix}/lib -lpng16 -lz',
                CPPFLAGS=f'-I{prefix}/include -isysroot {sdk}',
                CFLAGS=f'-O2 -arch {arch} -mmacosx-version-min=15.0',

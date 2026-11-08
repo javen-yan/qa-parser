@@ -75,8 +75,9 @@ def stop_service(process: subprocess.Popen) -> None:
 
 def main(argv=None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    if args[:1] == ['--cli']:
+    if args[:1] == ['--cli'] or os.environ.get('QA_PARSER_CLI_LOG'):
         _stdio_for_windowed_cli()
+    if args[:1] == ['--cli']:
         try:
             from .cli import main as cli_main
             return cli_main(args[1:])

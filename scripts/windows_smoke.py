@@ -242,6 +242,9 @@ def tail_text(path: Path, limit=8192):
 
 def failure_details(arguments, log: Path, internal: Path):
     sections = [f'{path.name} (last 8192 bytes):\n{tail_text(path)}' for path in (internal, log)]
+    # Native probes return structured failures even with windowed stdout absent.
+    if arguments and arguments[0] in ('--runtime-smoke', '--desktop-smoke'):
+        sections.append('Native probe report:\n' + tail_text(Path(arguments[-1])))
     if '--out' in arguments:
         index = arguments.index('--out')
         if index + 1 < len(arguments):

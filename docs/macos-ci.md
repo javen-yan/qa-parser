@@ -15,6 +15,8 @@
 
 云端包只属于轻量变体，不包含可选LibreOffice。现有Mac原图完整版900/900是先前本机真实样本证据，不能迁移为云端ARM64/Intel900题承诺。云端最低目标设置为macOS15.0，较旧系统不在本轮验证范围。应用为ad-hoc签名，未取得Developer ID签名、公证或客户电脑验收。
 
+原生编译环境显式设置`SDKROOT=xcrun --show-sdk-path`的结果。FreeType的`apinames`辅助程序直接调用编译器，不继承常规`CPPFLAGS`；仅在`CPPFLAGS`中传`-isysroot`会在云端Xcode编译器下报`stdio.h file not found`。该设置覆盖辅助程序及库编译，不依赖工作机全局SDK配置。
+
 ## 固定来源与缓存
 
 - `requirements-macos.lock`固定Python版本依赖及官方PyPI SHA；构建后端单独bootstrap且禁止未锁定build isolation下载。
@@ -27,4 +29,4 @@
 
 公开合成回归→构建→架构与原生库依赖检查→ZIP解压至中文空格路径→冻结CLI与开发核心语义比较→原生WMF→Cocoa真实窗口字体/公式检查→程序目录未写入检查。产物就是经过上述解压运行的同一ZIP，附SHA256与平台JSON。
 
-`qa-parser-macos-arm64-candidate`与`qa-parser-macos-x86_64-candidate`分别上传，14天保留；检查日志为独立evidence artifact。发布编排应等待两个Mac架构及Windows全通过后统一处理，不得用单平台成功发布残缺正式版本。这里不自行创建任何版本tag或正式Release。
+普通`macos-portable.yml`将两个候选分别作为Actions artifact上传，保留14天。`release.yml`则传入`upload-artifacts: 'false'`，关闭候选和诊断artifact上传，由同一runner直接上传本次独占Draft Release；不依赖普通工作流或其额度。发布编排等待两个Mac架构及Windows全通过后统一处理，不得用单平台成功发布残缺正式版本。手动运行始终保留草稿。
