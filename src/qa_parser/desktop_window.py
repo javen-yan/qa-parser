@@ -146,20 +146,22 @@ def main(argv=None) -> int:
                 try:
                     # Exercise the production page, pinned math adapter and
                     # actual font download through the local native WebView.
-                    window.evaluate_js("""document.fonts.load('16px "QA Formula Unicode"').then(fonts => { window.__qaFontReady = fonts.length > 0 && document.fonts.check('16px "QA Formula Unicode"'); });""")
+                    # The pinned Cocoa and EdgeChromium backends return a
+                    # JSON string from run_js without evaluate_js's eval wrapper.
+                    window.run_js("""document.fonts.load('16px "QA Formula Unicode"').then(fonts => { window.__qaFontReady = fonts.length > 0 && document.fonts.check('16px "QA Formula Unicode"'); }); void 0;""")
                     end = time.monotonic() + 20
                     while time.monotonic() < end:
-                        if window.evaluate_js('window.__qaFontReady === true'):
+                        if window.run_js('JSON.stringify(window.__qaFontReady === true)') == 'true':
                             break
                         time.sleep(.1)
-                    checks = window.evaluate_js(r'''(() => ({
+                    checks = json.loads(window.run_js(r'''JSON.stringify({
                       title: document.title,
                       controls: !!document.querySelector('#add') && !!document.querySelector('#file-input'),
                       font: window.__qaFontReady === true,
                       formula: QaMathPreview.assess('\\frac{U_{总}^{2}}{R}').supported,
                       engine: QaMathPreview.version,
                       userAgent: navigator.userAgent
-                    }))()''')
+                    })'''))
                     result['checks'] = checks
                     if not all(checks.get(k) for k in ('controls', 'font', 'formula')):
                         raise RuntimeError('Native page, font or formula check failed')

@@ -21,7 +21,7 @@ import xml.etree.ElementTree as ET
 MAX_INPUT_BYTES = 8 * 1024 * 1024
 MAX_PIXELS = 12_000_000
 MAX_DIMENSION = 8192
-WMF_ENGINE = 'libwmf/wmf2gd+ascii-font-audit/1'
+WMF_ENGINE = 'libwmf/wmf2gd+ascii-font-audit/2'
 RASTER_ENGINE = 'Pillow/original-preview/1'
 
 
@@ -208,6 +208,24 @@ def _validate_png(data: bytes, engine: str) -> dict:
             'engine': engine, 'width': width, 'height': height}
 
 
+def _wmf_png_bytes(data: bytes) -> bytes:
+    # The pinned MSYS2 libwmf 0.2.16 opens output with fopen(..., "w").
+    # Windows inserts CR before each LF, including PNG's binary signature.
+    # Reverse only that recognizable transport encoding, never image content;
+    # require exact round-trip and all PNG chunk CRCs before accepting it.
+    if sys.platform == 'win32' and data.startswith(b'\x89PNG\r\r\n\x1a\r\n'):
+        restored = data.replace(b'\r\n', b'\n')
+        if restored.replace(b'\n', b'\r\n') != data:
+            raise ValueError('WMF PNG text-mode encoding is inconsistent')
+        from PIL import Image
+        with Image.open(io.BytesIO(restored)) as check:
+            check.verify()
+        return restored
+    if not data.startswith(b'\x89PNG\r\n\x1a\n'):
+        raise ValueError(f'WMF renderer output is not PNG (header={data[:16].hex()})')
+    return data
+
+
 def preview_to_png(data: bytes, extension: str) -> dict:
     """Render the original embedded preview, or fail without guessing content.
 
@@ -242,7 +260,7 @@ def preview_to_png(data: bytes, extension: str) -> dict:
                     raise ValueError(f'WMF renderer reported a problem: {stderr[-400:]}')
                 if not target.is_file() or target.stat().st_size > MAX_INPUT_BYTES:
                     raise ValueError('WMF renderer output is missing or too large')
-                return _validate_png(target.read_bytes(), engine)
+                return _validate_png(_wmf_png_bytes(target.read_bytes()), engine)
         if ext not in {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tif', 'tiff', 'webp'}:
             raise ValueError(f'Unsupported original preview format: {ext}')
         from PIL import Image

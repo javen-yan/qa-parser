@@ -167,3 +167,20 @@ def test_frozen_fontmap_tracks_relocated_bundle(monkeypatch, tmp_path, platform)
         assert font.attrib == {'metrics': str(fonts / 'a.afm'), 'glyphs': str(fonts / 'a.t1')}
         assert '--wmf-sys-fontmap=' + str(tmp_path / 'fontmap.xml') in options
     assert '/old' not in (tmp_path / 'fontmap.xml').read_text()
+
+
+def test_windows_wmf_text_mode_transport_is_reversible_and_crc_checked(monkeypatch):
+    import sys
+    from qa_parser.formula_images import _wmf_png_bytes
+    original = raster()
+    encoded = original.replace(b'\n', b'\r\n')
+    monkeypatch.setattr(sys, 'platform', 'win32')
+    assert _wmf_png_bytes(encoded) == original
+    assert _wmf_png_bytes(original) == original
+    damaged = bytearray(original)
+    damaged[29] ^= 1  # IHDR CRC, not image data or a guessed formula.
+    with pytest.raises(Exception):
+        _wmf_png_bytes(bytes(damaged).replace(b'\n', b'\r\n'))
+    monkeypatch.setattr(sys, 'platform', 'darwin')
+    with pytest.raises(ValueError, match='not PNG'):
+        _wmf_png_bytes(encoded)
