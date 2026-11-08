@@ -38,3 +38,9 @@ CI 在 Release-ID 串行锁内，仅列举并终止当前精确对象 key 的未
 `main` 上手动触发的 `Native release via owned draft` 成功结束后，`workflow_run` 自动定位同一 run/commit 的唯一候选，执行三平台 OSS 同步和上述页面保留流程。解析器核实生产工作流、来源仓库、main 分支、手动触发和成功完成状态；不从其他仓库、PR 或未完成任务接收产物。按解析后的 Release ID 与手动同步共用串行锁。已经完成镜像的候选会跳过。没有 Secrets 或校验失败时保留附件并报告失败，不扩大权限。
 
 本轮实际验收：原生工作流 `42447683505` 三平台通过；OSS 同步 `42449275709` 三平台完整公网 SHA 通过。Release `438035464` 的 9 个附件及旧 Windows Release `438026570` 的 2 个附件均已清理，两个页面保留为 prerelease，Source tag 已核对。自动 `workflow_run` 接续已配置并测试来源解析；尚未为该接续重新触发整轮原生构建。
+
+## 正式版本与历史 Release 清理
+
+用户已明确授权首个正式版本 `v0.3.0`，与 `pyproject.toml` 的 0.3.0 一致；授权记录在 `packaging/release-policy.json`，客户实机/签名/目标系统验收仍单独列为未完成。正式 tag 绑定实际构建源码，每个平台重新原生构建。tag push 的原生成功任务会自动接续 OSS，同步至 `qa-parser/releases/<tag>/`；完成后保留 `draft=false`、`prerelease=false` 的正式页面、下载说明与 Source，移除 GitHub 镜像附件。正式包与临时候选包使用独立命名空间，不重贴旧包源码标签。
+
+`prune-releases.yml` 是独立、默认仅验证的历史清理入口。必须提供保留的正式 Release 数字 ID，以及明确的旧 Release ID 集合；它重新核对正式页面、三平台公网 SHA、源码 tag 和生产任务完成状态后，才可删除指定旧草稿/预发布及附件。若出现集合以外的新 Release、其他正式版、运行中/排队中的生产任务、页面变化或校验失败，则停止。源码、历史 git tags 和 OSS 文件不删除。原生构建、OSS 接续和历史清理共用 `qa-parser-release-lifecycle` 串行锁，避免生命周期操作竞争。
