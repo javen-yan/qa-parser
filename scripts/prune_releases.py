@@ -105,6 +105,7 @@ def prune(keep_id, expected_ids, receipt, *, apply=False, report_path=None):
                 raise ValueError('Release state changed during cleanup; stopping')
             api(f'repos/{REPO}/releases/{old_id}', method='DELETE')
             report['deleted'].append({'id': old_id, 'tag': before[old_id]['tag_name'], 'attachments': len(before[old_id].get('assets', []))})
+            print(f"Removed historical Release {old_id} ({before[old_id]['tag_name']}); git tag retained", flush=True)
             save()
         after = inventory()
         if set(after) != {keep_id} or signature(after[keep_id]) != signature(keep):
