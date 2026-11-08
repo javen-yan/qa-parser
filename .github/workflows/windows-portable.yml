@@ -2,7 +2,16 @@ name: Windows portable candidate
 
 on:
   workflow_dispatch:
+    inputs:
+      probe_only:
+        description: Only test Actions artifact storage; do not build
+        type: boolean
+        default: false
   workflow_call:
+    inputs:
+      probe_only:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -36,6 +45,8 @@ jobs:
           retention-days: 1
           compression-level: 0
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: ${{ !inputs.probe_only }}
         with:
           persist-credentials: false
       - uses: ./.github/actions/build-windows
+        if: ${{ !inputs.probe_only }}
