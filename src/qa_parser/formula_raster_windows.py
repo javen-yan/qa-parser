@@ -33,7 +33,7 @@ def native_main(input_path, output_path):
     import webview
     from .desktop_window import configure_windows_runtime
     configure_windows_runtime(webview)
-    formulas=json.loads(Path(input_path).read_text())
+    formulas=json.loads(Path(input_path).read_text(encoding='utf-8'))
     if not isinstance(formulas,list) or len(formulas)>4096 or any(not isinstance(s,str) or len(s)>65536 for s in formulas):
         raise ValueError('Invalid formula batch')
     output_path=Path(output_path)
@@ -100,7 +100,7 @@ def native_main(input_path, output_path):
                 except Exception as exc:
                     row.update(status='failed',reason=f'{type(exc).__name__}: {exc}')
                 rows.append(row)
-            output_path.write_text(json.dumps(rows,ensure_ascii=False,indent=2))
+            output_path.write_text(json.dumps(rows,ensure_ascii=False,indent=2), encoding='utf-8')
             done.set()
         finally:
             window.destroy()

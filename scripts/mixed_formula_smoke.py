@@ -36,21 +36,21 @@ def execute(cmd,args,env,log,expected=0):
     child=dict(env,QA_PARSER_CLI_LOG=str(log))
     with log.open('w',encoding='utf-8') as stream:
         r=subprocess.run(cmd+list(map(str,args)),cwd=log.parent,env=child,stdout=stream,stderr=subprocess.STDOUT,timeout=240)
-    if r.returncode!=expected:raise AssertionError(f'Exit {r.returncode} != {expected}: {log}: {log.read_text(errors="replace")[-2500:]}')
+    if r.returncode!=expected:raise AssertionError(f'Exit {r.returncode} != {expected}: {log}: {log.read_text(encoding="utf-8", errors="replace")[-2500:]}')
 
 
 def validate_batch(root):
-    summary=json.loads((root/'batch-summary.json').read_text())
+    summary=json.loads((root/'batch-summary.json').read_text(encoding='utf-8'))
     assert summary['passed']==6 and summary['quarantined']==1 and summary['status']=='partial_failure',summary
     semantics=[]
     for row in summary['files']:
-        work=Path(row['output']);task=json.loads((work/'task/task.json').read_text())
+        work=Path(row['output']);task=json.loads((work/'task/task.json').read_text(encoding='utf-8'))
         q=task['questions']
         assert r'$$\frac{U}{I}$$' in q[0]['stem']
         assert '参考0001.png' in q[1]['analysis'] and '参考0002.png' in q[1]['analysis']
         assert '参考0003.png' in q[2]['stem'] and '参考0004.png' in q[2]['analysis']
         assert len({a['filename'] for a in task['assets']})==4
-        report=json.loads((work/'export/report.json').read_text())
+        report=json.loads((work/'export/report.json').read_text(encoding='utf-8'))
         assert report['exported_questions']==3
         for image in report['images']:
             p=work/'export/images'/image['filename']
@@ -89,9 +89,9 @@ def main():
                 # os.environ is case-insensitive on Windows; a plain dict is not.
                 system_root=os.environ.get('SystemRoot', r'C:\Windows')
                 env['PATH']=os.pathsep.join([str(Path(system_root)/'System32'),system_root]) if sys.platform=='win32' else '/usr/bin:/bin:/usr/sbin:/sbin'
-            request=work/'formulas.json';request.write_text(json.dumps(CASES));result=work/'raster.json'
+            request=work/'formulas.json';request.write_text(json.dumps(CASES), encoding='utf-8');result=work/'raster.json'
             execute(cmd,['_rasterize-formulas',request,result],env,work/'raster.log')
-            raster=json.loads(result.read_text());assert len(raster)==len(CASES)
+            raster=json.loads(result.read_text(encoding='utf-8'));assert len(raster)==len(CASES)
             assert all(r['status']=='converted' for r in raster[:-1]),raster
             assert raster[-1]['status']=='failed'
             assert len({r['png_sha256'] for r in raster[:-1]})==len(CASES)-1,'Stale snapshot reused'
@@ -110,7 +110,7 @@ def main():
         if args.exe:assert report['runs']['development']['semantics']==report['runs']['frozen']['semantics']
         report['status']='passed'
     finally:
-        (out/'mixed-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+        (out/'mixed-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2), encoding='utf-8')
         print('MIXED_REPORT '+json.dumps(report,ensure_ascii=False),flush=True)
         for mode in modes:
             for index in [0,2,3,5]:

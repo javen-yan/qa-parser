@@ -41,7 +41,7 @@ def render_formulas(formulas):
     try:
         with tempfile.TemporaryDirectory(prefix='qa-formula-raster-') as folder:
             root = Path(folder)
-            (root/'input.json').write_text(json.dumps(formulas))
+            (root/'input.json').write_text(json.dumps(formulas), encoding='utf-8')
             base = [sys.executable, '--cli'] if getattr(sys, 'frozen', False) else [sys.executable, '-m', 'qa_parser']
             process = subprocess.Popen(base + ['_rasterize-formulas', str(root/'input.json'), str(root/'report.json')],
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -59,7 +59,7 @@ def render_formulas(formulas):
                 return failed('Native formula renderer timed out; source evidence retained')
             if process.returncode or not (root/'report.json').is_file():
                 return failed('Native formula renderer did not complete; source evidence retained')
-            report = json.loads((root/'report.json').read_text())
+            report = json.loads((root/'report.json').read_text(encoding='utf-8'))
             if len(report) != len(formulas):
                 return failed('Native formula result count mismatch')
             output = {}
@@ -103,7 +103,7 @@ def native_main(input_path, output_path):
     import WebKit
     from .problem_preview import _embedded_math
 
-    formulas = json.loads(Path(input_path).read_text())
+    formulas = json.loads(Path(input_path).read_text(encoding='utf-8'))
     if not isinstance(formulas, list) or len(formulas) > 4096 or any(not isinstance(s,str) or len(s)>65536 for s in formulas):
         raise ValueError('Invalid formula batch')
     output_path = Path(output_path)
@@ -162,6 +162,6 @@ def native_main(input_path, output_path):
         except Exception as exc:
             row.update(status='failed',reason=f'{type(exc).__name__}: {exc}')
         rows.append(row)
-    output_path.write_text(json.dumps(rows,ensure_ascii=False,indent=2))
+    output_path.write_text(json.dumps(rows,ensure_ascii=False,indent=2), encoding='utf-8')
     window.orderOut_(None)
     return 0
