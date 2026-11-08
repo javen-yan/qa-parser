@@ -321,7 +321,23 @@ def validate_task(task: dict, task_dir: Path, source: Path | None = None) -> dic
             if f and f["status"] == "image":
                 fallback = assets_by_id.get(f.get("fallback_asset_id"))
                 preview = f.get("preview", {})
-                if (not fallback or fallback.get("origin") != "formula_preview"
+                if fallback and fallback.get('origin') == 'formula_rerender':
+                    evidence = f.get('raster_evidence', {})
+                    valid = (f.get('conversion_status') == 'converted'
+                             and (f.get('output_policy') or {}).get('mode') == 'image'
+                             and fallback.get('formula_id') == fid
+                             and fallback.get('source_formula_sha256') == f['source']['sha256']
+                             and f['source']['path'] not in broken
+                             and fallback.get('latex_sha256') == digest((f.get('latex') or '').encode())
+                             and evidence.get('latex_sha256') == fallback.get('latex_sha256')
+                             and evidence.get('png_sha256') == fallback.get('sha256')
+                             and evidence.get('renderer_resources_sha256') == fallback.get('renderer_resources_sha256')
+                             and bool(evidence.get('renderer_resources_sha256'))
+                             and evidence.get('engine') == fallback.get('engine')
+                             and fallback['filename'] in q['asset_filenames'])
+                    if not valid:
+                        q['issues'].append(issue('formula_image_binding', 'Rerendered formula evidence differs', f['location'], formula_id=fid))
+                elif (not fallback or fallback.get("origin") != "formula_preview"
                     or fallback.get("formula_id") != fid
                     or fallback.get("source_preview_sha256") != preview.get("sha256")
                     or not (f.get("preview_binding") or {}).get("verified")
@@ -390,6 +406,8 @@ def parse_document(source: Path, kind: str, out_dir: Path, config: dict | None =
         document = read_document(staging / snapshot["path"])
         blocks, formulas, assets = _prepare_blocks(document, staging, config)
         questions, preamble = _questions(blocks, kind, config)
+        from .mixed_formulas import apply_mixed_formulas
+        apply_mixed_formulas(questions, formulas, assets, blocks, staging, config)
         _render_questions(questions, formulas, assets, config)
         document_issues = []
         for value in document.get("issues", []):

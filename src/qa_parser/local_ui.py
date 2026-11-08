@@ -153,6 +153,11 @@ class Application:
                 raise UIError("本批次已经处理，请先新建批次。", 409)
             if not self.files:
                 raise UIError("请先添加 Word 文档。")
+            from .delivery import validate_delivery_names
+            try:
+                validate_delivery_names(file['name'] for file in self.files)
+            except ValueError as exc:
+                raise UIError(str(exc)) from exc
             try:
                 self.output_directory.mkdir(parents=True, exist_ok=True)
                 probe = self.output_directory / (".qa-write-" + uuid.uuid4().hex)

@@ -16,9 +16,9 @@ from test_batch import choice, docx
 from test_exporter import sample_task
 
 
-def test_batch_package_mixed_same_name_partial_and_corrupt(tmp_path):
+def test_batch_package_mixed_names_partial_and_corrupt(tmp_path):
     first = docx(tmp_path / 'a/同名.docx', choice() + choice('2', 'AB'))
-    second = docx(tmp_path / 'b/同名.docx', ['1．填空____', '【答案】铁'])
+    second = docx(tmp_path / 'b/另一份.docx', ['1．填空____', '【答案】铁'])
     broken = tmp_path / '损坏.docx'
     broken.write_bytes(b'not word')
     work = tmp_path / '诊断'
@@ -36,11 +36,11 @@ def test_batch_package_mixed_same_name_partial_and_corrupt(tmp_path):
     with ZipFile(result['delivery']) as z:
         assert z.testzip() is None
         assert set(z.namelist()) == {
-            '批次结果说明.txt', '0001-同名/结果说明.txt', '0001-同名/questions.xlsx', '0001-同名/未导出题目.html',
-            '0002-同名/结果说明.txt', '0002-同名/questions.xlsx', '0003-损坏/结果说明.txt',
-            '0001-同名/题目预览.html', '0002-同名/题目预览.html',
+            '批次结果说明.txt', '_说明/0001/结果说明.txt', '同名.xlsx', '同名/', '_说明/0001/未导出题目.html',
+            '_说明/0002/结果说明.txt', '另一份.xlsx', '另一份/', '_说明/0003/结果说明.txt',
+            '_说明/0001/题目预览.html', '_说明/0002/题目预览.html',
             '_display/NotoSansCJKsc-Regular.otf', '_display/OFL.txt'}
-        assert '第 2 题' in z.read('0001-同名/结果说明.txt').decode()
+        assert '第 2 题' in z.read('_说明/0001/结果说明.txt').decode()
         z.extractall(tmp_path / '解压')
     for xlsx in (tmp_path / '解压').rglob('*.xlsx'):
         with ZipFile(xlsx) as z:
@@ -72,7 +72,7 @@ def image_export(root, color):
 
 def test_unpacked_excel_references_independent_images_and_only_manifest_payload(tmp_path):
     images = [image_export(tmp_path / 'a', 'red'), image_export(tmp_path / 'b', 'blue')]
-    rows = [{'name': '同名.docx', 'message': '转换成功', 'total': 1, 'passed': 1, 'quarantined': 0,
+    rows = [{'name': letter + ' 中文.docx', 'message': '转换成功', 'total': 1, 'passed': 1, 'quarantined': 0,
              'export': str(tmp_path / letter / 'export'), 'status': 'success'} for letter in ['a', 'b']]
     snapshot = {'message': '全部成功', 'total_files': 2, 'passed': 2, 'quarantined': 0, 'files': rows}
     result = publish_delivery(snapshot, tmp_path / 'final')
@@ -80,13 +80,13 @@ def test_unpacked_excel_references_independent_images_and_only_manifest_payload(
         assert not any(name.endswith(('.json', '.log', '.docx')) for name in z.namelist())
         assert not any('unused' in name for name in z.namelist())
         z.extractall(tmp_path / 'unpacked')
-    for index, expected in enumerate(images, 1):
-        folder = tmp_path / 'unpacked' / f'{index:04d}-同名'
-        with ZipFile(folder / 'questions.xlsx') as z:
+    for letter, expected in zip(['a', 'b'], images):
+        folder = tmp_path / 'unpacked' / (letter + ' 中文')
+        with ZipFile(folder.with_suffix('.xlsx')) as z:
             xml = ET.fromstring(z.read('xl/worksheets/sheet1.xml'))
             assert '参考0001.png' in ''.join(xml.itertext())
-        assert (folder / 'images/0001.png').read_bytes() == expected
-        with Image.open(folder / 'images/0001.png') as image:
+        assert (folder / '0001.png').read_bytes() == expected
+        with Image.open(folder / '0001.png') as image:
             image.verify()
 
 
@@ -130,7 +130,7 @@ def test_failed_questions_preview_is_offline_and_only_failed_questions(tmp_path)
     source = docx(tmp_path / '题.docx', choice() + choice('2', 'AB'))
     result = run_batch([source], 'auto', tmp_path / 'work')
     with ZipFile(result['delivery']) as z:
-        html = z.read('0001-题/未导出题目.html').decode()
+        html = z.read('_说明/0001/未导出题目.html').decode()
         assert '第 2 题' in html and '第 1 题' not in html
         assert '未导出' in html and 'Content-Security-Policy' in html
         assert '<script src=' not in html and '<link' not in html
@@ -151,9 +151,66 @@ def test_all_questions_failed_still_has_explanatory_html_without_success_zip(tmp
            'problem_preview_sha256': summary['problem_preview']['sha256']}
     result = publish_delivery({'message': '失败', 'total_files': 1, 'passed': 0, 'quarantined': 1, 'files': [row]}, tmp_path / 'final')
     assert result['delivery'] is None
-    assert (tmp_path / 'final/0001-input/未导出题目.html').is_file()
+    assert (tmp_path / 'final/_说明/0001/未导出题目.html').is_file()
     assert not list((tmp_path / 'final').rglob('*.xlsx'))
     assert not list((tmp_path / 'final').rglob('*.zip'))
     Path(row['problem_preview']).write_text('<script>untrusted</script>')
     with pytest.raises(ValueError, match='changed'):
         publish_delivery({'message': '失败', 'total_files': 1, 'passed': 0, 'quarantined': 1, 'files': [row]}, tmp_path / 'other')
+
+
+def test_numeric_documents_keep_exact_names_and_separate_images(tmp_path):
+    images = [image_export(tmp_path / 'a', 'red'), image_export(tmp_path / 'b', 'blue')]
+    rows = [{'name': name + '.docx', 'message': '成功', 'total': 1, 'passed': 1,
+             'quarantined': 0, 'export': str(tmp_path / folder / 'export')}
+            for name, folder in [('01', 'a'), ('10', 'b')]]
+    result = publish_delivery({'message': '成功', 'total_files': 2, 'passed': 2,
+                               'quarantined': 0, 'files': rows}, tmp_path / 'final')
+    with ZipFile(result['delivery']) as z:
+        for name, expected in zip(['01', '10'], images):
+            assert z.read(name + '/0001.png') == expected
+            with ZipFile(io.BytesIO(z.read(name + '.xlsx'))) as workbook:
+                assert '参考0001.png' in workbook.read('xl/worksheets/sheet1.xml').decode()
+            assert not any(p.startswith(name + '/') and p.endswith(('.txt', '.html')) for p in z.namelist())
+        assert not any('/images/' in p or p.endswith('questions.xlsx') for p in z.namelist())
+
+
+def test_duplicate_numeric_names_fail_without_publishing(tmp_path):
+    rows = [{'name': '1.docx'}, {'name': '1.docx'}]
+    with pytest.raises(ValueError, match='文件名重复'):
+        publish_delivery({'files': rows}, tmp_path / 'final')
+    assert not (tmp_path / 'final').exists()
+
+
+def test_numeric_batch_retains_preview_and_empty_image_folder(tmp_path):
+    source = docx(tmp_path / '1.docx', choice())
+    result = run_batch([source], 'auto', tmp_path / 'work')
+    assert result['delivery_status'] == 'success'
+    with ZipFile(result['delivery']) as z:
+        assert '1.xlsx' in z.namelist() and '1/' in z.namelist()
+        assert '_说明/0001/题目预览.html' in z.namelist()
+        assert '根目录 1.xlsx' in z.read('_说明/0001/结果说明.txt').decode()
+
+
+@pytest.mark.parametrize('names', [
+    ['同名.docx', '同名.DOCX'], ['Test.docx', 'test.docx'], ['1.docx', '1.xlsx.docx'],
+    ['_display.docx'], ['_说明.docx'], ['CON.docx'], ['a?.docx'], ['尾空格 .docx'],
+    ['é.docx', 'e\u0301.docx'],
+])
+def test_delivery_rejects_cross_platform_name_collisions(names, tmp_path):
+    from qa_parser.delivery import validate_delivery_names
+    with pytest.raises(ValueError):
+        validate_delivery_names(names)
+
+
+def test_single_run_cli_uses_same_customer_layout(tmp_path, capsys):
+    from qa_parser.cli import main
+    source = docx(tmp_path / '物理 01.docx', choice())
+    out = tmp_path / 'run'
+    assert main(['run', str(source), '--kind', 'choice', '--out', str(out)]) == 0
+    assert '最终结果' in capsys.readouterr().out
+    with ZipFile(out / '最终结果/题库最终结果.zip') as archive:
+        assert {'物理 01.xlsx', '物理 01/', '_说明/0001/题目预览.html'} <= set(archive.namelist())
+        html = archive.read('_说明/0001/题目预览.html').decode()
+        assert 'url(../../_display/NotoSansCJKsc-Regular.otf)' in html
+        assert not any(name.endswith('/questions.xlsx') or '/images/' in name for name in archive.namelist())

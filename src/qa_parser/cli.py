@@ -15,6 +15,9 @@ from .result import result_text
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="离线 DOCX 题库转换内核；导入契约尚未验证")
     commands = parser.add_subparsers(dest="command", required=True)
+    raster = commands.add_parser('_rasterize-formulas', help=argparse.SUPPRESS)
+    raster.add_argument('input', type=Path)
+    raster.add_argument('output', type=Path)
     commands.add_parser("desktop", help="打开独立桌面窗口")
     ui = commands.add_parser("ui", help="打开本地题库转换界面")
     ui.add_argument("--out", type=Path, help="默认结果保存目录")
@@ -46,6 +49,9 @@ def main(argv=None) -> int:
     commands.add_parser("config", help="打印默认配置（可保存为 JSON 后调整）")
     args = parser.parse_args(argv)
     try:
+        if args.command == '_rasterize-formulas':
+            from .formula_raster import native_main
+            return native_main(args.input, args.output)
         if args.command == "desktop":
             from .desktop_window import main as desktop_main
             return desktop_main([])
@@ -63,7 +69,10 @@ def main(argv=None) -> int:
             print(json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2))
             return 0
         if args.command == "run":
+            from .delivery import publish_single_delivery, validate_delivery_names
+            validate_delivery_names([args.source.name])
             report = run_document(args.source, args.kind, args.out, load_config(args.config))
+            report.update(publish_single_delivery(report, args.out))
         elif args.command == "parse":
             report = parse_document(args.source, args.kind, args.out, load_config(args.config))
         elif args.command == "validate":
@@ -79,7 +88,7 @@ def main(argv=None) -> int:
                 print(result_text(result, brief=True), end="")
                 print(f"结果说明：{(args.out / 'result.txt').resolve()}")
                 if result["export"]:
-                    print(f"导出文件：{(args.out / 'export').resolve()}")
+                    print(f"最终结果：{report['delivery']}")
                 print(f"诊断报告：{(args.out / 'quarantine.json').resolve()}")
             return {"success": 0, "partial_failure": 2, "failure": 1}[result["status"]]
         # Detailed per-question reports remain in the task/export directory.

@@ -11,12 +11,27 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
+import unicodedata
+from urllib.parse import quote
 from zipfile import ZIP_DEFLATED, ZipFile
 
 
-def _document_name(index: int, name: str) -> str:
-    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', Path(name).stem).strip(' .')[:80] or 'Word'
-    return f'{index:04d}-{stem}'
+def validate_delivery_names(names) -> None:
+    """Keep basenames exactly, rejecting collisions on Windows and macOS."""
+    def key(name):
+        return unicodedata.normalize('NFC', name).casefold()
+    paths = {key(name) for name in ('_说明', '_display', '批次结果说明.txt', '转换失败说明.txt')}
+    for name in names:
+        stem = Path(name).stem
+        if (not stem or stem in {'.', '..'} or stem.endswith((' ', '.'))
+                or re.search(r'[<>:"/\\|?*\x00-\x1f]', stem)
+                or re.match(r'(?i)^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)', stem)
+                or len((stem + '.xlsx').encode('utf-16-le')) // 2 > 255):
+            raise ValueError(f'文件名无法跨平台原样交付，请先重命名 Word：{name}')
+        targets = {key(stem), key(stem + '.xlsx')}
+        if targets & paths:
+            raise ValueError(f'文件名重复或交付路径冲突，请先重命名 Word：{name}')
+        paths.update(targets)
 
 
 def _document_report(row: dict) -> str:
@@ -40,8 +55,9 @@ def _document_report(row: dict) -> str:
     if row.get('preview_notice'):
         lines.append(row['preview_notice'])
     if row.get('export'):
-        lines.extend(['questions.xlsx 是本文件的题库；图片位于同目录 images 文件夹。',
-                      '“参考0001.png”等引用对应本文件 images/0001.png；不同文件的图片编号独立。'])
+        stem = Path(row['name']).stem
+        lines.extend([f'题库位于压缩包根目录 {stem}.xlsx；图片位于根目录 {stem}/ 文件夹。',
+                      f'“参考0001.png”等引用对应 {stem}/0001.png；不同文件的图片编号独立。'])
     if row.get('export_preview'):
         lines.append('题目预览：题目预览.html。请保留整个解压目录。')
     return '\n'.join(lines) + '\n'
@@ -80,6 +96,24 @@ def _preview_file(row: dict) -> Path | None:
     return source
 
 
+def publish_single_delivery(summary: dict, work: Path) -> dict:
+    """Expose the same customer layout for the single-document run CLI."""
+    user = summary['user_result']
+    row = {**user, 'name': summary['source'], 'total': summary['total'],
+           'passed': summary['passed'], 'quarantined': summary['quarantined'],
+           'export': str(work / 'export') if user['export'] else None}
+    for field in ('export_preview', 'problem_preview'):
+        if summary.get(field):
+            row[field] = str(work / summary[field]['path'])
+            row[field + '_sha256'] = summary[field]['sha256']
+    row['display_assets'] = [{**asset, 'path': str(work / asset['path'])}
+                             for asset in summary.get('display_assets', [])]
+    return publish_delivery({'message': user['message'], 'total_files': 1,
+                             'passed': summary['passed'] or 0,
+                             'quarantined': summary['quarantined'] or 0,
+                             'files': [row]}, work / '最终结果')
+
+
 def publish_delivery(snapshot: dict, destination: Path) -> dict:
     """Create a new final-only directory, never overwrite an existing result.
 
@@ -88,6 +122,7 @@ def publish_delivery(snapshot: dict, destination: Path) -> dict:
     archive bearing the final filename.
     """
     destination = Path(destination).expanduser().absolute()
+    validate_delivery_names(row['name'] for row in snapshot['files'])
     if destination.exists() or destination.is_symlink():
         raise FileExistsError(f'Delivery directory already exists: {destination}')
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -98,11 +133,11 @@ def publish_delivery(snapshot: dict, destination: Path) -> dict:
                  '无法读取的文件题数未知，不计入已确认未导出题数。', '']
         reports = []
         for index, row in enumerate(snapshot['files'], 1):
-            name = _document_name(index, row['name'])
+            name = f'_说明/{index:04d}'
             report = _document_report(row)
             reports.append((name, row, report))
             lines.extend([f'[{name}]', report])
-        lines.extend(['请完整解压后使用，保留每份文档的 Excel 与 images 文件夹。',
+        lines.extend(['请完整解压后使用。每份 Word 对应根目录同名 Excel 和同名图片文件夹；预览及说明位于 _说明/。',
                       '目标系统导入、图片关联和公式显示：未验证。'])
         report_text = '\n'.join(lines) + '\n'
         report_name = '批次结果说明.txt' if snapshot['passed'] else '转换失败说明.txt'
@@ -113,13 +148,17 @@ def publish_delivery(snapshot: dict, destination: Path) -> dict:
                 archive.writestr('批次结果说明.txt', report_text)
                 shared = {}
                 for name, row, report in reports:
+                    stem = Path(row['name']).stem
                     archive.writestr(name + '/结果说明.txt', report)
                     preview_file = _preview_file(row)
                     if preview_file:
                         archive.write(preview_file, name + '/未导出题目.html')
                     if row.get('export'):
+                        archive.writestr(stem + '/', b'')
                         for source, relative in _export_files(row):
-                            archive.write(source, name + '/' + relative)
+                            target = (stem + '.xlsx' if relative == 'questions.xlsx' else
+                                      stem + '/' + relative.removeprefix('images/'))
+                            archive.write(source, target)
                         if row.get('export_preview'):
                             preview = Path(row['export_preview'])
                             if (preview.is_symlink() or not preview.is_file()
@@ -127,7 +166,12 @@ def publish_delivery(snapshot: dict, destination: Path) -> dict:
                                 or preview.resolve().parent != Path(row['export']).resolve()
                                 or hashlib.sha256(preview.read_bytes()).hexdigest() != row.get('export_preview_sha256')):
                                 raise ValueError('Export preview missing or changed')
-                            archive.write(preview, name + '/题目预览.html')
+                            # Relocate generated resource URLs, leaving formula
+                            # text and CSP-hashed inline scripts unchanged.
+                            html = preview.read_text(encoding='utf-8')
+                            html = html.replace('src="images/', 'src="../../' + quote(stem, safe='') + '/')
+                            html = html.replace('url(../_display/', 'url(../../_display/')
+                            archive.writestr(name + '/题目预览.html', html)
                             assets = row.get('display_assets', [])
                             required = {'NotoSansCJKsc-Regular.otf', 'OFL.txt'}
                             if len(assets) != 2 or {Path(a['path']).name for a in assets} != required:
@@ -153,7 +197,7 @@ def publish_delivery(snapshot: dict, destination: Path) -> dict:
                 preview_file = _preview_file(row)
                 if preview_file:
                     folder = temporary / name
-                    folder.mkdir()
+                    folder.mkdir(parents=True)
                     shutil.copyfile(preview_file, folder / '未导出题目.html')
                     (folder / '结果说明.txt').write_text(report, encoding='utf-8')
         # Reserve only after all payloads have been verified; never replace an
