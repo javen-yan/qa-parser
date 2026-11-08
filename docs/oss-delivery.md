@@ -26,3 +26,5 @@ GitHub 草稿可见性要求 push 权限，因此此手动工作流的 GITHUB_TO
 实际同步默认启用 `cleanup_draft`，计划模式不会删除。仅生产工作流已结束、所有当前资产均有 OSS 完整下载 SHA 证明时，才允许清理同一 owner/commit/run 的手动 draft。上传途中、缺资产、未知新增附件、校验失败、已发布 Release 都保留。删除前重新检查资产集合及生产工作流状态。工作流按 Release ID 串行；公开 `release/delivery-record-<targets>.json` 保留下载链接、文件哈希、来源提交及运行号，GitHub 草稿删除不影响 OSS 下载。
 
 独立恢复命令 `python scripts/cleanup_oss_draft.py --release-id ID --receipt delivery-record.json` 仅验证；追加 `--delete` 才删除。已不存在返回幂等状态。清理仅允许本项目及已授权的 maiya-reader 北京下载域名。失败或历史空草稿不批量删除。Draft Release 附件和 Actions artifact 配额属于不同存储；清理不证明 artifact 配额恢复。
+
+大于 16 MiB 的对象采用 4 路、8 MiB 分片；每片 Content-MD5 与 SDK CRC 校验，合并时核对组合 CRC 并再次带 forbid-overwrite，失败只终止本次 upload ID。小文件继续单次上传。需额外只读 `oss:GetBucketVersioning` 和本目录 `oss:AbortMultipartUpload` 权限；若 bucket 版本控制已启用或暂停，OSS 会忽略 forbid-overwrite，因此脚本拒绝写入，不修改版本控制。依据：[分片上传](https://www.alibabacloud.com/help/en/oss/developer-reference/use-oss-python-sdk-to-multipart-upload)、[完成分片与禁止覆盖条件](https://www.alibabacloud.com/help/en/oss/developer-reference/completemultipartupload)。

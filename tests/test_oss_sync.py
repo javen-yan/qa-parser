@@ -117,3 +117,39 @@ def test_sdk_error_reports_code_without_signed_payload(sync):
         status=403
         code='AccessDenied'
     assert sync.safe_error(Denied('secret signed headers private-token')) == 'Denied HTTP 403 AccessDenied'
+
+
+def test_multipart_orders_parts_checks_md5_and_forbids_completion_overwrite(sync,tmp_path):
+    import hashlib
+    import base64
+    p=tmp_path/'large.zip';p.write_bytes(b'abcdefghi')
+    class Multi:
+        def init_multipart_upload(self,key,headers):
+            assert headers['x-oss-forbid-overwrite']=='true'
+            return SimpleNamespace(upload_id='own-upload')
+        def upload_part(self,key,upload_id,number,data,headers):
+            assert upload_id=='own-upload'
+            assert headers['Content-MD5']==base64.b64encode(hashlib.md5(data).digest()).decode()
+            return SimpleNamespace(status=200,crc=number,etag=str(number))
+        def complete_multipart_upload(self,key,upload_id,parts,headers):
+            assert [p.part_number for p in parts]==[1,2,3]
+            assert [p.size for p in parts]==[4,4,1]
+            assert [p.part_crc for p in parts]==[1,2,3]
+            assert headers=={'x-oss-forbid-overwrite':'true'}
+            return 'complete'
+        def abort_multipart_upload(self,*args):raise AssertionError('unexpected abort')
+    factory=lambda number,etag,**kw:SimpleNamespace(part_number=number,etag=etag,**kw)
+    assert sync.upload_multipart(Multi(),'key',p,{'x-oss-forbid-overwrite':'true'},part_size=4,part_info=factory)=='complete'
+
+
+def test_multipart_crc_failure_aborts_only_own_upload(sync,tmp_path):
+    p=tmp_path/'large.zip';p.write_bytes(b'abc')
+    calls=[]
+    class Multi:
+        def init_multipart_upload(self,key,headers):return SimpleNamespace(upload_id='own-upload')
+        def upload_part(self,*a,**kw):return SimpleNamespace(status=200,crc=None)
+        def abort_multipart_upload(self,*args):calls.append(args)
+        def complete_multipart_upload(self,*a,**kw):raise AssertionError('must not complete')
+    with pytest.raises(ValueError,match='CRC'):
+        sync.upload_multipart(Multi(),'key',p,{},part_size=4,part_info=lambda *a,**k:None)
+    assert calls==[('key','own-upload')]

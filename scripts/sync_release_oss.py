@@ -2,6 +2,7 @@
 """Opt-in immutable OSS distribution of verified Release binaries; no artifacts."""
 from __future__ import annotations
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import base64
 import hashlib
 import json
@@ -136,6 +137,46 @@ def prepare(repo, release_id, targets, work, *, plan_only=False):
             'tag': owner['tag'], 'release_prefix': prefix + '/release', 'release_files': release_files, 'targets': rows}
 
 
+def upload_multipart(bucket, key, path, headers, *, part_size=8 * 1024 * 1024, workers=4, part_info=None):
+    if part_info is None:
+        from oss2.models import PartInfo
+        part_info = PartInfo
+    init = bucket.init_multipart_upload(key, headers=headers)
+    upload_id = init.upload_id
+    parts = []
+    def part(number, offset):
+        with path.open('rb') as stream:
+            stream.seek(offset)
+            data = stream.read(part_size)
+        result = bucket.upload_part(key, upload_id, number, data, headers={
+            'Content-MD5': base64.b64encode(hashlib.md5(data).digest()).decode('ascii')})
+        if result.status != 200 or result.crc is None:
+            raise ValueError('Multipart part lacks successful CRC evidence')
+        print(f'Uploaded verified part {number} ({len(data)} bytes)', flush=True)
+        return part_info(number, result.etag, size=len(data), part_crc=result.crc)
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(part, number, offset) for number, offset in
+                       enumerate(range(0, path.stat().st_size, part_size), 1)]
+            try:
+                for future in as_completed(futures):
+                    parts.append(future.result())
+            except BaseException:
+                for future in futures:
+                    future.cancel()
+                raise
+        # The SDK combines the per-part CRCs (with their sizes) and checks the
+        # returned object CRC. The completion gate also forbids overwriting.
+        return bucket.complete_multipart_upload(key, upload_id,
+            sorted(parts, key=lambda p: p.part_number), headers={'x-oss-forbid-overwrite': 'true'})
+    except BaseException:
+        try:
+            bucket.abort_multipart_upload(key, upload_id)
+        except Exception as error:
+            print('Own multipart abort failed: ' + safe_error(error), flush=True)
+        raise
+
+
 def upload_immutable(bucket, key, path):
     if not re.fullmatch(r'qa-parser/(?:candidates|releases)/[A-Za-z0-9.-]+/(?:windows-x64|macos-arm64|macos-x86_64|release)/[A-Za-z0-9_.-]+', key):
         raise ValueError('Unsafe OSS destination; no latest or arbitrary prefix allowed')
@@ -159,20 +200,18 @@ def upload_immutable(bucket, key, path):
         finally:
             remote.close()
         return 'already-identical'
-    with path.open('rb') as stream:
-        md5 = hashlib.file_digest(stream, 'md5').digest()
-    print(f'Uploading {key} ({path.stat().st_size} bytes)', flush=True)
-    last_reported = [-1]
-    def progress(consumed, total):
-        stage = consumed // (32 * 1024 * 1024)
-        if stage > last_reported[0] or consumed == total:
-            last_reported[0] = stage
-            print(f'Transferred {consumed}/{total} bytes', flush=True)
-    result = bucket.put_object_from_file(key, str(path), progress_callback=progress, headers={
+    headers = {
         'x-oss-forbid-overwrite': 'true', 'x-oss-meta-sha256': digest,
-        'Content-MD5': base64.b64encode(md5).decode('ascii'),
         'Content-Type': 'application/zip' if path.suffix == '.zip' else 'text/plain; charset=utf-8',
-        'Content-Disposition': f'attachment; filename="{path.name}"'})
+        'Content-Disposition': f'attachment; filename="{path.name}"'}
+    print(f'Uploading {key} ({path.stat().st_size} bytes)', flush=True)
+    if path.stat().st_size > 16 * 1024 * 1024:
+        result = upload_multipart(bucket, key, path, headers)
+    else:
+        with path.open('rb') as stream:
+            md5 = hashlib.file_digest(stream, 'md5').digest()
+        headers['Content-MD5'] = base64.b64encode(md5).decode('ascii')
+        result = bucket.put_object_from_file(key, str(path), headers=headers)
     if result.status != 200 or result.crc is None:
         raise ValueError('OSS upload did not return successful CRC evidence')
     head = bucket.head_object(key)
@@ -218,6 +257,10 @@ def main(argv=None):
         import oss2
         bucket = oss2.Bucket(oss2.AuthV4(cfg['access_key_id'], cfg['access_key_secret']),
                             cfg['endpoint'], cfg['bucket'], region=cfg['region'], enable_crc=True, connect_timeout=60)
+        # OSS ignores forbid-overwrite when versioning is Enabled/Suspended.
+        # Refuse that state; never change bucket configuration.
+        if bucket.get_bucket_versioning().status not in (None, ''):
+            raise ValueError('Bucket versioning prevents guaranteed forbid-overwrite; no writes performed')
         for row in report['targets']:
             row['uploads'] = []
             for filename in row.pop('files'):
