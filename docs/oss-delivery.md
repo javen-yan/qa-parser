@@ -1,6 +1,6 @@
 # 可选 OSS 下载分发
 
-`oss-sync.yml` 只从本仓库已验证的 GitHub Release 下载二进制，不使用 Actions artifacts，默认计划模式不改 Release；实际同步可在完整验证后清理本次拥有的临时草稿。默认 `plan_only=true` 只检查来源、目标元数据与路径；不上传，也不下载大 ZIP。实际同步会下载 ZIP，核对 GitHub SHA-256、原生验证记录和 ZIP CRC，然后上传。
+`oss-sync.yml` 只从本仓库已验证的 GitHub Release 下载二进制，不使用 Actions artifacts，默认计划模式不改 Release；实际同步可在完整验证后保留 Release 下载页面并清理已镜像附件。默认 `plan_only=true` 只检查来源、目标元数据与路径；不上传，也不下载大 ZIP。实际同步会下载 ZIP，核对 GitHub SHA-256、原生验证记录和 ZIP CRC，然后上传。
 
 在仓库 Settings → Secrets and variables → Actions 配置以下 Repository Secrets：
 
@@ -17,14 +17,18 @@
 
 上传带 Content-MD5、SDK CRC 校验及 `x-oss-forbid-overwrite`。同名已存在时核对实际内容 SHA-256，内容不同则失败，不覆盖。完成后匿名完整下载每个对象并核对 SHA-256 与长度；不可公开访问时报告失败，不自动扩大权限。日志和 Actions summary 给出成功链接，不依赖 artifact 存储。不能把 plan-only 成功当作上传成功。
 
-当前 Windows 已验证候选的 Release ID 为 `438026570`。Mac 原生启动检查仍在修复；真实客户环境、签名公证和系统导入仍未验收。六项 Secrets 已确认配置，首个 Windows 上传正在执行；以实际传输与公网校验结果为准。
+三平台原生构建与汇总已通过，最新完整候选 Release ID 为 `438035464`。此前 Windows 单平台候选 `438026570` 已完成 OSS 上传及匿名完整下载 SHA 校验。真实客户环境、签名公证和系统导入仍未验收。
 
-GitHub 草稿可见性要求 push 权限，因此此手动工作流的 GITHUB_TOKEN 使用 `contents: write`；同步对 GitHub 只发 GET，显式开启清理后仅删除已完整镜像的手动草稿；不发布 Release，不删除源码、tag 或正式 Release，checkout 不保留凭据。参见 https://docs.github.com/en/rest/releases/releases 。
+GitHub 草稿可见性和附件清理需要 `contents: write`，检查生产任务需要 `actions: read`；checkout 不保留凭据。参见 https://docs.github.com/en/rest/releases/releases 。
 
-## 草稿清理
+## 保留 Release 页面，清理镜像附件
 
-实际同步默认启用 `cleanup_draft`，计划模式不会删除。仅生产工作流已结束、所有当前资产均有 OSS 完整下载 SHA 证明时，才允许清理同一 owner/commit/run 的手动 draft。上传途中、缺资产、未知新增附件、校验失败、已发布 Release 都保留。删除前重新检查资产集合及生产工作流状态。工作流按 Release ID 串行；公开 `release/delivery-record-<targets>.json` 保留下载链接、文件哈希、来源提交及运行号，GitHub 草稿删除不影响 OSS 下载。
+`cleanup_draft` 是兼容保留的输入名，现语义为：先验证所有 OSS 文件的匿名下载 SHA，保存带平台下载链接、大小、校验值和候选说明的 Release body，重新读取确认成功后，仅删除已镜像附件。最后把本次手动候选置为 `prerelease=true`、`draft=false`、`make_latest=false`；保留 Release 页面、候选源码 tag 和自动 Source 链接，绝不删除整条 Release、不冒充稳定正式版。仓库可见性不变。
 
-独立恢复命令 `python scripts/cleanup_oss_draft.py --release-id ID --receipt delivery-record.json` 仅验证；追加 `--delete` 才删除。已不存在返回幂等状态。清理仅允许本项目及已授权的 maiya-reader 北京下载域名。失败或历史空草稿不批量删除。Draft Release 附件和 Actions artifact 配额属于不同存储；清理不证明 artifact 配额恢复。
+缺资产、未知附件、校验失败、生产任务运行中或说明未保存时不删附件。按 Release ID 串行；中途停止可基于已保存 receipt 恢复，只处理剩余附件。已有稳定或无本工具镜像标记的已发布 Release 不处理。公开 `release/delivery-record-<targets>.json` 保存来源与校验记录。
+
+独立恢复：`python scripts/cleanup_oss_draft.py --release-id ID --receipt delivery-record.json` 仅验证，追加 `--apply` 才保存说明、清理附件并保留候选预发布页面。仅允许本项目及 maiya-reader 北京下载域名。历史空/失败草稿不批量处理。Release 附件与 Actions artifact 配额不同，清理不证明 artifact 配额恢复。
 
 大于 16 MiB 的对象采用 4 路、8 MiB 分片；每片 Content-MD5 与 SDK CRC 校验，合并时核对组合 CRC 并再次带 forbid-overwrite，失败只终止本次 upload ID。小文件继续单次上传。需额外只读 `oss:GetBucketVersioning` 和本目录 `oss:AbortMultipartUpload` 权限；若 bucket 版本控制已启用或暂停，OSS 会忽略 forbid-overwrite，因此脚本拒绝写入，不修改版本控制。依据：[分片上传](https://www.alibabacloud.com/help/en/oss/developer-reference/use-oss-python-sdk-to-multipart-upload)、[完成分片与禁止覆盖条件](https://www.alibabacloud.com/help/en/oss/developer-reference/completemultipartupload)。
+
+CI 在 Release-ID 串行锁内，仅列举并终止当前精确对象 key 的未完成旧分片，再启动新上传。需 `oss:ListMultipartUploads` 和 `oss:AbortMultipartUpload`；不会清理相邻 key、其他候选或完整 OSS 对象。

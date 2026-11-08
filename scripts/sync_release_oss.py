@@ -137,6 +137,18 @@ def prepare(repo, release_id, targets, work, *, plan_only=False):
             'tag': owner['tag'], 'release_prefix': prefix + '/release', 'release_files': release_files, 'targets': rows}
 
 
+def abort_stale_uploads(bucket, key):
+    # Called only inside the Release-ID serialized CI job, before creating a
+    # new upload. Never list broadly or abort prefix-neighbour objects.
+    result = bucket.list_multipart_uploads(prefix=key, max_uploads=1000)
+    if result.is_truncated:
+        raise ValueError('Too many incomplete uploads; no fragment cleanup performed')
+    for item in result.upload_list:
+        if item.key == key and item.upload_id:
+            bucket.abort_multipart_upload(key, item.upload_id)
+            print(f'Aborted incomplete prior upload for {key}', flush=True)
+
+
 def upload_multipart(bucket, key, path, headers, *, part_size=8 * 1024 * 1024, workers=4, part_info=None):
     if part_info is None:
         from oss2.models import PartInfo
@@ -206,6 +218,8 @@ def upload_immutable(bucket, key, path):
         'Content-Disposition': f'attachment; filename="{path.name}"'}
     print(f'Uploading {key} ({path.stat().st_size} bytes)', flush=True)
     if path.stat().st_size > 16 * 1024 * 1024:
+        if os.environ.get('GITHUB_ACTIONS') == 'true':
+            abort_stale_uploads(bucket, key)
         result = upload_multipart(bucket, key, path, headers)
     else:
         with path.open('rb') as stream:
@@ -295,7 +309,7 @@ def main(argv=None):
         verify_public(report['receipt_url'], receipt_path.stat().st_size, sha(receipt_path))
         if args.cleanup_draft:
             from cleanup_oss_draft import cleanup
-            report['cleanup'] = cleanup(args.repo, args.release_id, receipt, delete=True)
+            report['cleanup'] = cleanup(args.repo, args.release_id, receipt, apply=True)
     (args.work / 'oss-sync-report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if os.environ.get('GITHUB_STEP_SUMMARY'):

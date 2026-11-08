@@ -153,3 +153,14 @@ def test_multipart_crc_failure_aborts_only_own_upload(sync,tmp_path):
     with pytest.raises(ValueError,match='CRC'):
         sync.upload_multipart(Multi(),'key',p,{},part_size=4,part_info=lambda *a,**k:None)
     assert calls==[('key','own-upload')]
+
+
+def test_fragment_cleanup_is_exact_key_only(sync):
+    calls=[]
+    class Bucket:
+        def list_multipart_uploads(self,**kw):
+            assert kw=={'prefix':'owned/key.zip','max_uploads':1000}
+            return SimpleNamespace(is_truncated=False,upload_list=[SimpleNamespace(key='owned/key.zip',upload_id='old'),SimpleNamespace(key='owned/key.zip.other',upload_id='other')])
+        def abort_multipart_upload(self,*args):calls.append(args)
+    sync.abort_stale_uploads(Bucket(),'owned/key.zip')
+    assert calls==[('owned/key.zip','old')]
