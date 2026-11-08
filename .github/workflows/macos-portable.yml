@@ -2,7 +2,16 @@ name: macOS native portable candidates
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_artifacts:
+        description: Upload Actions artifacts (requires storage quota)
+        type: boolean
+        default: false
   workflow_call:
+    inputs:
+      upload_artifacts:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,3 +49,4 @@ jobs:
       - uses: ./.github/actions/build-macos
         with:
           architecture: ${{ matrix.architecture }}
+          upload-artifacts: ${{ inputs.upload_artifacts && 'true' || 'false' }}
