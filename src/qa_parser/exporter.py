@@ -21,7 +21,7 @@ CHOICE_COLUMNS = [
     "optionA", "optionB", "optionC", "optionD", "title", "questionType",
 ]
 BLANK_COLUMNS = ["ID", "考点", "题目", "答案"]
-_IMAGE_REF = re.compile(r"(?<![\w.-])(\d{4,}\.(?:png|jpe?g|gif|bmp|tiff?|wmf|emf|svg|webp))(?![\w.-])", re.I)
+_IMAGE_REF = re.compile(r"(?<![A-Za-z0-9_.-])((?:aaa)?\d{4,}\.(?:png|jpe?g|gif|bmp|tiff?|wmf|emf|svg|webp))(?![\w.-])", re.I)
 
 
 class ExportError(ValueError):

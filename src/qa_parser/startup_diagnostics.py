@@ -1,4 +1,4 @@
-"""Read-only Windows startup probe, usable before importing clr or webview.
+"""Windows startup probe and pinned-component recovery before clr or webview.
 
 No filenames outside the fixed runtime set, environment values, exception
 messages, download URLs, usernames or document data enter the JSON report.
