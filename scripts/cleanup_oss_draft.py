@@ -29,6 +29,24 @@ def cleanup(repo, release_id, receipt, *, apply=False):
         if run.get('status') != 'completed' or run.get('head_sha') != owner['commit'] or run.get('path') != '.github/workflows/release.yml':
             raise ValueError('Producer workflow is running or source identity differs')
     check_run()
+    def check_source_tag(required):
+        try:
+            item = api(f"repos/{repo}/git/ref/tags/{owner['tag']}")['object']
+        except RuntimeError as error:
+            if not required and 'HTTP 404' in str(error):
+                return
+            raise
+        for _ in range(8):
+            if item['type'] == 'commit':
+                if item['sha'] != owner['commit']:
+                    raise ValueError('Candidate Source tag differs from verified commit')
+                return
+            if item['type'] != 'tag':
+                break
+            item = api(f"repos/{repo}/git/tags/{item['sha']}")['object']
+        raise ValueError('Candidate Source tag cannot be resolved')
+    if apply:
+        check_source_tag(not release['draft'])
     expected = {'release-manifest.json', 'SHA256SUMS.txt', 'RELEASE_NOTES.md'}
     for target in TARGETS:
         expected |= {f'qa-parser-{target}-candidate.zip', f'release-metadata-{target}.json'}
@@ -64,6 +82,7 @@ def cleanup(repo, release_id, receipt, *, apply=False):
     # Strip only our own prior mirror section, leaving the ownership marker and
     # original candidate description intact. This makes interrupted retries safe.
     body = release.get('body', '').split(marker)[0].rstrip()
+    body = body.replace('此为手动草稿，不指定正式版本，不自动发布。', '此为候选预发布，不指定稳定正式版本。')
     body += '\n\n' + marker + '\n\n## 阿里云下载（候选测试版）\n\n'
     body += '完整解压后运行：Windows 打开 EXE，Mac 打开 .app。保留运行时和许可证。\n\n'
     body += '| 平台 | 下载 | 字节数 | SHA-256 |\n|---|---|---:|---|\n'
@@ -101,6 +120,7 @@ def cleanup(repo, release_id, receipt, *, apply=False):
             'draft': False, 'prerelease': True, 'make_latest': 'false'})
         if result.get('draft') or not result.get('prerelease') or result.get('body') != body or result.get('tag_name') != owner['tag']:
             raise ValueError('Candidate publication state mismatch')
+        check_source_tag(True)
         url = result['html_url']
     else:
         url = release.get('html_url')

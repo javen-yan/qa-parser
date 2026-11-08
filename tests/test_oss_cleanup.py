@@ -23,6 +23,7 @@ def setup(monkeypatch):
     calls=[]
     def api(endpoint,method='GET',payload=None):
         calls.append((endpoint,method))
+        if '/git/ref/tags/' in endpoint:return {'object':{'type':'commit','sha':commit}}
         if method=='DELETE':
             assert '/releases/assets/' in endpoint
             assert '阿里云下载' in release['body']
@@ -87,3 +88,16 @@ def test_platform_checksums_do_not_replace_release_checksum_evidence(setup):
     current['SHA256SUMS.txt']=dict(id=3,state='uploaded',digest='sha256:'+'d'*64,size=12)
     assert c.cleanup(repo,'9',receipt,apply=True)['status']=='release-retained-with-oss-links'
     assert not current
+
+
+def test_wrong_source_tag_blocks_attachment_cleanup(setup,monkeypatch):
+    c,repo,release,receipt,current,run,calls=setup
+    original=c.api
+    def api(endpoint,method='GET',payload=None):
+        if '/git/ref/tags/' in endpoint:return {'object':{'type':'commit','sha':'c'*40}}
+        return original(endpoint,method,payload)
+    monkeypatch.setattr(c,'api',api)
+    with pytest.raises(ValueError,match='Source tag differs'):
+        c.cleanup(repo,'9',receipt,apply=True)
+    assert len(current)==2
+    assert not any(m in ('PATCH','DELETE') for _,m in calls)
