@@ -146,7 +146,9 @@ def native_main(input_path, output_path):
                 raise ValueError('Formula exceeds native viewport; refusing cropped image')
             config=WebKit.WKSnapshotConfiguration.alloc().init()
             config.setRect_(AppKit.NSMakeRect(rect['x'],rect['y'],rect['width'],rect['height']))
-            config.setSnapshotWidth_(rect['width']*2)
+            # WKSnapshotWidth is in points: Retina otherwise doubles our 2x
+            # request again and rejects valid long formulas at the pixel cap.
+            config.setSnapshotWidth_(rect['width']*2/window.backingScaleFactor())
             captured=[]
             view.takeSnapshotWithConfiguration_completionHandler_(config,lambda image,error:captured.append((image,error)))
             wait(captured)
