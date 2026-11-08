@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 
-def write_metadata(archive, smoke, target, output, source_complete):
+def write_metadata(archive, smoke, target, output, source_complete, startup=None):
     report = json.loads(smoke.read_text(encoding='utf-8'))
     if report.get('status') != 'passed' or report.get('gui', {}).get('status') != 'passed':
         raise ValueError('Native CLI and GUI smoke must pass before candidate metadata')
@@ -20,6 +20,12 @@ def write_metadata(archive, smoke, target, output, source_complete):
             'private_reference': 'not uploaded or validated', 'customer_environment': 'unverified',
             'run_url': f"https://github.com/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}",
             'smoke': report}
+    if startup is not None:
+        diagnostic = json.loads(startup.read_text(encoding='utf-8'))
+        if (diagnostic.get('status') != 'passed' or not diagnostic.get('outer_error_reproduced')
+            or diagnostic.get('automatic_recovery', {}).get('status') != 'recovered_verified_internet_mark'):
+            raise ValueError('Windows startup reproduction and automatic recovery must pass')
+        data['startup_validation'] = diagnostic
     output.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
@@ -30,10 +36,11 @@ if __name__ == '__main__':
     p.add_argument('--target', choices=['windows-x64', 'macos-arm64', 'macos-x86_64'], required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--runtime-lock', type=Path, required=True)
+    p.add_argument('--startup', type=Path)
     a = p.parse_args()
     lock = json.loads(a.runtime_lock.read_text(encoding='utf-8'))
     if a.target == 'windows-x64':
         complete = not lock['wmf']['missing_sources']
     else:
         complete = lock.get('source_closure_complete') is True
-    write_metadata(a.archive, a.smoke, a.target, a.output, complete)
+    write_metadata(a.archive, a.smoke, a.target, a.output, complete, a.startup)
