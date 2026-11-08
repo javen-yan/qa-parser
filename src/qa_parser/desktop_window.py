@@ -106,14 +106,24 @@ def main(argv=None) -> int:
     # Never inherit a development cwd or depend on resources next to the app.
     process = subprocess.Popen(service_command(data), cwd=data, stdout=log, stderr=log,
                                start_new_session=os.name == 'posix',
-                               **({'creationflags': subprocess.CREATE_NO_WINDOW,
-                                   'env': dict(os.environ, QA_PARSER_CLI_LOG=str(data / 'desktop.log'))}
+                               env=dict(os.environ, QA_PARSER_CLI_LOG=str(data / 'desktop.log')),
+                               **({'creationflags': subprocess.CREATE_NO_WINDOW}
                                   if sys.platform == 'win32' else {}))
     instance = data / 'server.json'
     try:
         deadline = time.monotonic() + 30
         while not instance.exists():
             if process.poll() is not None or time.monotonic() > deadline:
+                if smoke:
+                    print(f'Service startup failed: exit={process.poll()}, pid={process.pid}', flush=True)
+                    with (data / 'desktop.log').open('rb') as diagnostic:
+                        diagnostic.seek(0, os.SEEK_END)
+                        diagnostic.seek(max(0, diagnostic.tell() - 8192))
+                        print(diagnostic.read().decode('utf-8', errors='replace'), flush=True)
+                    if sys.platform == 'darwin' and process.poll() is None:
+                        sampled = subprocess.run(['/usr/bin/sample', str(process.pid), '1', '1'],
+                                                 capture_output=True, text=True, timeout=10, check=False)
+                        print(sampled.stdout[:14000], flush=True)
                 raise RuntimeError(f'转换服务未能启动，诊断文件：{data / "desktop.log"}')
             time.sleep(.1)
         origin = json.loads(instance.read_text(encoding='utf-8'))['url']
