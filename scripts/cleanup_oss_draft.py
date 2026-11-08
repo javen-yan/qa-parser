@@ -10,6 +10,12 @@ from release_draft import api, assets, TARGETS
 from sync_release_oss import release_owner, verify_public
 
 
+def asset_identity(item):
+    # Draft description updates can regenerate browser_download_url; download
+    # counters also change on reads. Immutable identity and content must match.
+    return {k: item.get(k) for k in ('id', 'name', 'state', 'size', 'digest')}
+
+
 def cleanup(repo, release_id, receipt, *, apply=False):
     if repo != 'javen-yan/qa-parser' or not re.fullmatch(r'[1-9][0-9]*', str(release_id)):
         raise ValueError('Cleanup is limited to this project and numeric release IDs')
@@ -95,7 +101,8 @@ def cleanup(repo, release_id, receipt, *, apply=False):
             body += f"- [{item['key'].rsplit('/', 1)[-1]}]({item['url']})\n"
     body += '\n这是候选预发布，不是稳定正式版；客户环境、签名公证及真实系统导入尚未验收。Source 链接保留对应源码。\n'
     latest = api(f'repos/{repo}/releases/{release_id}')
-    if latest != release or assets(repo, release_id) != current:
+    release_fields = ('body', 'draft', 'prerelease', 'tag_name', 'target_commitish')
+    if any(latest.get(k) != release.get(k) for k in release_fields) or {n: asset_identity(a) for n, a in assets(repo, release_id).items()} != {n: asset_identity(a) for n, a in current.items()}:
         raise ValueError('Release changed during verification; retaining attachments')
     check_run()
     removed = []
@@ -108,7 +115,7 @@ def cleanup(repo, release_id, receipt, *, apply=False):
             raise ValueError('OSS download description not saved; attachments retained')
         for name, remote in current.items():
             fresh = assets(repo, release_id)
-            if name not in fresh or fresh[name] != remote or set(fresh) - set(current):
+            if name not in fresh or asset_identity(fresh[name]) != asset_identity(remote) or set(fresh) - set(current):
                 raise ValueError('Attachments changed; stopping cleanup')
             check_run()
             api(f"repos/{repo}/releases/assets/{remote['id']}", method='DELETE')

@@ -31,7 +31,9 @@ def setup(monkeypatch):
             for name in list(current):
                 if current[name]['id']==asset_id:del current[name]
             return None
-        if method=='PATCH':release.update(payload)
+        if method=='PATCH':
+            release.update(payload)
+            for asset in current.values():asset['browser_download_url']='regenerated-draft-link'
         return copy.deepcopy(run if '/actions/runs/' in endpoint else release)
     monkeypatch.setattr(c,'api',api);monkeypatch.setattr(c,'assets',lambda *a:copy.deepcopy(current))
     monkeypatch.setattr(c,'verify_public',lambda *a:None)
