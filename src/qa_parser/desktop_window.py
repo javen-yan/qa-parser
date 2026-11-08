@@ -87,8 +87,14 @@ def service_stopper(process):
     return stop
 
 
-def main(argv=None) -> int:
+def _main(argv=None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    if args[:1] == ['--diagnose-startup']:
+        from .startup_diagnostics import run
+        root = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path.cwd()
+        destination = Path(args[1]) if len(args) == 2 else user_data_directory() / 'diagnostics/startup-diagnostic.json'
+        run(root, destination)
+        return 0
     if args[:1] == ['--cli'] or os.environ.get('QA_PARSER_CLI_LOG'):
         _stdio_for_windowed_cli()
     if args[:1] == ['--cli']:
@@ -214,6 +220,30 @@ def main(argv=None) -> int:
         stop()
         instance.unlink(missing_ok=True)
         log.close()
+
+
+def main(argv=None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    try:
+        return _main(args)
+    except Exception as error:
+        # CLI errors retain their existing contracts. Only an interactive
+        # Windows startup gets a bounded, private-data-free diagnostic report.
+        if sys.platform != 'win32' or args:
+            raise
+        from .startup_diagnostics import run, explanation
+        destination = user_data_directory() / 'diagnostics/startup-diagnostic.json'
+        try:
+            root = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path.cwd()
+            report = run(root, destination)
+            report['startup_exception_type'] = type(error).__name__
+            destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+            message = explanation(report) + '\n\n诊断报告：' + str(destination)
+        except Exception:
+            message = 'Windows 窗口初始化失败，诊断未能完成。请使用独立启动诊断工具；不要修改系统安全设置。'
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(None, message, '题库转换：启动诊断', 0x10)
+        return 1
 
 
 if __name__ == '__main__':

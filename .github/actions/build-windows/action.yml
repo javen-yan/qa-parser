@@ -62,6 +62,11 @@ runs:
       run: |
         python scripts/windows_smoke.py --exe 'dist/windows/题库转换/题库转换.exe' --out 'build/中文 Windows smoke' --gui
         if ($LASTEXITCODE -ne 0) { throw 'Frozen application smoke failed' }
+    - name: Startup diagnostics and controlled Internet-zone reproduction
+      shell: pwsh
+      run: |
+        python scripts/windows_startup_smoke.py --exe 'build/中文 Windows smoke/中文 解压/题库转换/题库转换.exe' --out 'build/Windows startup diagnostics'
+        if ($LASTEXITCODE -ne 0) { throw 'Startup diagnostics regression failed' }
     - name: Mixed formula business and native capture checks
       shell: pwsh
       run: |

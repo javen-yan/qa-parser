@@ -53,6 +53,9 @@ $Manifest = @{
 }
 $Manifest | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 (Join-Path $BuildRoot 'build-manifest.json')
 Copy-Item (Join-Path $PSScriptRoot 'WINDOWS-THIRD-PARTY-NOTICES.txt') $App
+$env:QA_DIAGNOSTIC_APP = $App
+& python -c 'import os; from pathlib import Path; from qa_parser.startup_diagnostics import customer_command; (Path(os.environ["QA_DIAGNOSTIC_APP"])/"windows-startup-diagnostic.cmd").write_bytes(customer_command().encode("ascii"))'
+if ($LASTEXITCODE -ne 0) { throw 'Standalone startup diagnostic generation failed' }
 @'
 题库转换 — Windows x64 云端验证候选
 请完整解压后双击“题库转换.exe”，不要只复制EXE。
