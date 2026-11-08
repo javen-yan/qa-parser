@@ -28,3 +28,15 @@ Windows 云端环境为 Windows Server 2022 x64；Mac 云端目标为 macOS 15 A
 ## 后续诊断（8015259）
 
 Mac 原生运行 `42447429693` 的 Python 栈和原生采样共同确认：冻结服务停在 `HTTPServer.server_bind → socket.getfqdn → gethostbyaddr`，等待 mDNS 反向查询。现改为 TCPServer 的 numeric loopback bind，明确设置 server_name/server_port，不进行反向 DNS；没有扩大监听范围。新增 DNS 不可用回归，完整公开回归 254 通过、79 明确排除。原生工作流 `42447683505` 正在验证此修复，结果仍以实际运行记录为准。
+
+## 三平台原生通过（8015259）
+
+工作流 `42447683505` 的 Windows、Mac ARM64、Mac Intel 原生 job 均已成功；三个候选及元数据已经直传草稿 `438035464`，完整汇总任务已成功，九个资产从 Release 下载后完成 SHA 核对。
+
+| 平台 | ZIP 字节数 | SHA-256 |
+|---|---:|---|
+| Windows x64 | 491270330 | ba680793d10c7e590df35dfad79feb39d7098d4f65bf2ad86c21a1bcfcb18c5f |
+| Mac ARM64 | 45530879 | 13908f924e59fd9413d01375f7d375b64e10bd1be1174d383c4cb144d02668f6 |
+| Mac Intel | 47006259 | b2978288955424a0ad9f6ea7f8e755cd3be1a2af33181c69fc9506ae8f2c5ded |
+
+OSS 完整 SHA 校验与候选清理代码新增后，本地公开合成回归为 264 通过、79 明确排除，无意外跳过。此新增部分是构建端分发脚本，不改变上述客户二进制。

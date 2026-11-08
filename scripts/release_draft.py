@@ -240,7 +240,10 @@ def finalize(repo, release_id, owner, work):
         # Ensure the original user tag is still present immediately before publish.
         check_tag_commit(repo, saved['tag'], owner['commit'])
     result = api(f'repos/{repo}/releases/{release_id}', method='PATCH', payload={
-        'body': body, 'draft': not publish, 'prerelease': manifest['prerelease'], 'make_latest': 'false'})
+        'body': body, 'tag_name': saved['tag'], 'target_commitish': owner['commit'],
+        'draft': not publish, 'prerelease': manifest['prerelease'], 'make_latest': 'false'})
+    if result.get('tag_name') != saved['tag'] or result.get('target_commitish') != owner['commit']:
+        raise ValueError('Final release tag/source identity changed')
     if bool(result['draft']) == publish:
         raise ValueError('Final release state differs from requested state')
     print(json.dumps({'url': result['html_url'], 'draft': result['draft'], 'assets': len(remote)}))

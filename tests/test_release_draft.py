@@ -17,7 +17,9 @@ class Fake:
   if '/releases/assets/' in endpoint and output is not None:
    id=int(endpoint.rsplit('/',1)[-1]);output.write_bytes(next(b for i,b in self.files.values() if i['id']==id));return
   if endpoint.endswith('/releases/123'):
-   if method=='PATCH':self.patches.append(copy.deepcopy(payload));self.release.update(payload)
+   if method=='PATCH':
+    self.patches.append(copy.deepcopy(payload));self.release.update(payload)
+    if payload.get('draft') and 'tag_name' not in payload:self.release['tag_name']='untagged-server-generated'
    return self.release
   raise AssertionError((endpoint,method))
 
