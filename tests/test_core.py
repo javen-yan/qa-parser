@@ -132,7 +132,7 @@ def test_images_preserve_position_and_damage_prevents_export(tmp_path):
     source = write_docx(tmp_path / "image.docx", body, {"first.png": b"\x89PNG\r\n\x1a\nfixture"})
     report = parse_document(source, "choice", tmp_path / "task")
     q = report["questions"][0]
-    assert q["options"]["A"] == "装置甲请参考 0001.png"
+    assert q["options"]["A"] == "装置甲参考0001.png"
     assert q["asset_filenames"] == ["0001.png"]
     task, root = load_task(tmp_path / "task")
     (root / task["assets"][0]["path"]).write_bytes(b"changed")

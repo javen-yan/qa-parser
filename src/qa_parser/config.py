@@ -12,7 +12,7 @@ DEFAULT_CONFIG = {
     "question_type": "",
     "formula_delimiter": "$$",
     "formula_fallback": "image",
-    "image_reference": "请参考 {filename}",
+    "image_reference": "参考{filename}",
     "difficulty_levels": ["低", "中", "高"],
     "difficulty_seed": "qa-parser-v1",
     "field_defaults": {},

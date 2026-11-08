@@ -234,14 +234,15 @@ def main():
                               'sdk': subprocess.check_output(['/usr/bin/xcrun', '--show-sdk-version'], text=True).strip()},
                 'variant': 'light', 'real_reference_validation': 'not performed; private corpus not uploaded',
                 'customer_distribution': 'pending signing/notarization and target-environment validation'}
-    (framework / 'build-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+    resources_dir = app / 'Contents/Resources'
+    (resources_dir / 'build-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     run(['/usr/bin/codesign', '--force', '--deep', '--sign', '-', app])
     run(['/usr/bin/codesign', '--verify', '--deep', '--strict', app])
     files = [{'path': p.relative_to(framework).as_posix(), 'bytes': p.stat().st_size, 'sha256': sha(p)}
              for name in ('wmf', 'licenses') for p in sorted((framework / name).rglob('*')) if p.is_file()]
     resources = {'schema_version': 1, 'platform': 'darwin', 'architecture': args.architecture, 'files': files}
     # Manifest addition requires signing again but does not mutate native content.
-    (framework / 'resources-manifest.json').write_text(json.dumps(resources, indent=2), encoding='utf-8')
+    (resources_dir / 'resources-manifest.json').write_text(json.dumps(resources, indent=2), encoding='utf-8')
     run(['/usr/bin/codesign', '--force', '--sign', '-', app])
     run(['/usr/bin/codesign', '--verify', '--deep', '--strict', app])
     (build / 'build-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')

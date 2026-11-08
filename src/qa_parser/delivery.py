@@ -41,7 +41,7 @@ def _document_report(row: dict) -> str:
         lines.append(row['preview_notice'])
     if row.get('export'):
         lines.extend(['questions.xlsx 是本文件的题库；图片位于同目录 images 文件夹。',
-                      '“请参考 0001.png”等引用对应本文件 images/0001.png；不同文件的图片编号独立。'])
+                      '“参考0001.png”等引用对应本文件 images/0001.png；不同文件的图片编号独立。'])
     if row.get('export_preview'):
         lines.append('题目预览：题目预览.html。请保留整个解压目录。')
     return '\n'.join(lines) + '\n'

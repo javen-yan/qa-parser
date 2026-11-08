@@ -38,6 +38,13 @@ def _wmf_runtime(directory: Path) -> tuple[str | None, list[str]]:
         fonts = root / 'fonts'
         if not executable.is_file() or not (fonts / 'fontmap').is_file():
             return None, []
+        # libwmf's narrow Windows stat/fopen cannot resolve UTF-8 absolute
+        # paths in its fontmap. Python copies via wide paths; the child uses
+        # ASCII paths relative to its wide-character working directory.
+        relative = sys.platform == 'win32'
+        if relative:
+            shutil.copytree(fonts, directory / 'fonts')
+            fonts = directory / 'fonts'
         tree = ET.parse(fonts / 'fontmap')
         for font in tree.getroot():
             for key in ('metrics', 'glyphs'):
@@ -45,14 +52,14 @@ def _wmf_runtime(directory: Path) -> tuple[str | None, list[str]]:
                 path = fonts / name
                 if not path.is_file():
                     raise ValueError(f'Bundled WMF font is missing: {name}')
-                font.attrib[key] = str(path)
+                font.attrib[key] = path.relative_to(directory).as_posix() if relative else str(path)
         fontmap = directory / 'fontmap.xml'
         tree.write(fontmap, encoding='utf-8', xml_declaration=True)
         empty_gs = directory / 'Fontmap.GS'
         empty_gs.write_text('', encoding='ascii')
-        return str(executable), [f'--wmf-fontdir={fonts}', '--wmf-sys-fonts',
-            f'--wmf-sys-fontmap={fontmap}', '--wmf-xtra-fonts',
-            f'--wmf-xtra-fontmap={fontmap}', f'--wmf-gs-fontmap={empty_gs}']
+        return str(executable), [f'--wmf-fontdir={"fonts" if relative else fonts}', '--wmf-sys-fonts',
+            f'--wmf-sys-fontmap={fontmap.name if relative else fontmap}', '--wmf-xtra-fonts',
+            f'--wmf-xtra-fontmap={fontmap.name if relative else fontmap}', f'--wmf-gs-fontmap={empty_gs.name if relative else empty_gs}']
     return os.environ.get('QA_PARSER_WMF2GD') or shutil.which('wmf2gd'), []
 # Font substitution between these Latin families changes appearance, not ASCII
 # semantics. Symbol, MT Extra, CJK and arbitrary custom fonts are NOT accepted.
@@ -223,10 +230,12 @@ def preview_to_png(data: bytes, extension: str) -> dict:
                 source = Path(directory) / 'source.wmf'
                 target = Path(directory) / 'preview.png'
                 source.write_bytes(data)
+                windows = sys.platform == 'win32'
                 command = [executable, *font_options, '--maxwidth=1600', '--maxheight=300', '--maxpect',
-                           '--wmf-ignore-nonfatal=no', '-o', str(target), str(source)]
+                           '--wmf-ignore-nonfatal=no', '-o', target.name if windows else str(target),
+                           source.name if windows else str(source)]
                 process = subprocess.run(command, capture_output=True, timeout=15, check=False,
-                    **({'creationflags': subprocess.CREATE_NO_WINDOW} if sys.platform == 'win32' else {}))
+                    **({'creationflags': subprocess.CREATE_NO_WINDOW, 'cwd': directory} if windows else {}))
                 stderr = process.stderr.decode('utf-8', errors='replace')
                 diagnostic = re.sub(r'[\d%\s\x08]+', '', stderr)
                 if process.returncode or diagnostic:

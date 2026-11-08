@@ -93,7 +93,7 @@ def test_failed_formula_uses_original_preview_in_original_order(tmp_path):
     assets = {a["id"]: a for a in parsed["assets"]}
     names = [assets[f["fallback_asset_id"]]["filename"] for f in formula]
     ordinary = next(a["filename"] for a in parsed["assets"] if a["id"] not in {f["fallback_asset_id"] for f in formula})
-    assert q["stem"] == f"前请参考 {names[0]}中请参考 {ordinary}后请参考 {names[1]}末"
+    assert q["stem"] == f"前参考{names[0]}中参考{ordinary}后参考{names[1]}末"
     assert q["asset_filenames"] == [names[0], ordinary, names[1]]
     for f in formula:
         a = assets[f["fallback_asset_id"]]

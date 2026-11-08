@@ -147,7 +147,7 @@ def check_bundle(result, out, expected_html, expected_workbooks):
     for workbook in (out / 'extracted').glob('*/questions.xlsx'):
         for row in read_xlsx(workbook):
             for cell in row:
-                for image in re.findall(r'请参考 (\d{4,}\.[A-Za-z0-9]+)', cell):
+                for image in re.findall(r'(?:请)?参考 ?(\d{4,}\.[A-Za-z0-9]+)', cell):
                     check((workbook.parent / 'images' / image).is_file(), 'Broken extracted image reference: ' + image)
                     references += 1
     return {'integrity': 'passed', 'internal_files_excluded': True, 'xlsx_files': expected_workbooks,

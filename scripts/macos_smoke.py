@@ -95,7 +95,7 @@ def resource_evidence(app: Path, expected: str, inventory):
     wmf = frameworks / 'wmf/bin/wmf2gd'
     require(wmf.is_file() and os.access(wmf, os.X_OK), 'Bundled WMF executable missing')
     require((frameworks / 'wmf/fonts/fontmap').is_file(), 'Bundled WMF fontmap missing')
-    manifest_file = frameworks / 'resources-manifest.json'
+    manifest_file = contents / 'Resources/resources-manifest.json'
     manifest = json.loads(manifest_file.read_text(encoding='utf-8'))
     require(manifest.get('schema_version') == 1 and manifest.get('platform') == 'darwin' and manifest.get('architecture') == expected, 'Unexpected native resource manifest platform/architecture')
     listed = set()

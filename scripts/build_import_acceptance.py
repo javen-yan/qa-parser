@@ -43,7 +43,7 @@ for name,filename,number,expected in cases:
  html,stats=render_export_preview(folder,filename)
  (folder/'题目预览.html').write_text(html)
  for key,value in zip(cells[0][1],cells[1][1]):
-  for image in re.findall(r'请参考 (\d+\.[A-Za-z0-9]+)',value):
+  for image in re.findall(r'(?:请)?参考 ?(\d+\.[A-Za-z0-9]+)',value):
    assert (folder/'images'/image).is_file()
  (folder/'验收说明.txt').write_text(f'原文：{filename}，第 {number} 题\n导入位置：questions.xlsx，第 2 行\n预期：{expected}\n状态：待目标系统验证。\n')
  manifest.append({'case':name,'source':filename,'number':number,'kind':task['kind'],'excel_row':2,

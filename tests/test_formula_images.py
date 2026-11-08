@@ -139,10 +139,12 @@ def test_frozen_renderer_never_uses_developer_path(monkeypatch, tmp_path):
     assert _wmf_runtime(tmp_path) == (None, [])
 
 
-def test_frozen_fontmap_tracks_relocated_bundle(monkeypatch, tmp_path):
+@pytest.mark.parametrize('platform', ['darwin', 'win32'])
+def test_frozen_fontmap_tracks_relocated_bundle(monkeypatch, tmp_path, platform):
     from qa_parser.formula_images import _wmf_runtime
     import sys
     import xml.etree.ElementTree as ET
+    monkeypatch.setattr(sys, 'platform', platform)
     bundle = tmp_path / '中文 relocated app'
     fonts = bundle / 'wmf/fonts'
     fonts.mkdir(parents=True)
@@ -157,6 +159,11 @@ def test_frozen_fontmap_tracks_relocated_bundle(monkeypatch, tmp_path):
     executable, options = _wmf_runtime(tmp_path)
     assert executable == str(binary)
     font = ET.parse(tmp_path / 'fontmap.xml').getroot()[0]
-    assert font.attrib == {'metrics': str(fonts / 'a.afm'), 'glyphs': str(fonts / 'a.t1')}
-    assert '--wmf-sys-fontmap=' + str(tmp_path / 'fontmap.xml') in options
+    if platform == 'win32':
+        assert font.attrib == {'metrics': 'fonts/a.afm', 'glyphs': 'fonts/a.t1'}
+        assert '--wmf-sys-fontmap=fontmap.xml' in options
+        assert (tmp_path / 'fonts/a.t1').read_bytes() == b'font'
+    else:
+        assert font.attrib == {'metrics': str(fonts / 'a.afm'), 'glyphs': str(fonts / 'a.t1')}
+        assert '--wmf-sys-fontmap=' + str(tmp_path / 'fontmap.xml') in options
     assert '/old' not in (tmp_path / 'fontmap.xml').read_text()

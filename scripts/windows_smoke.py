@@ -130,7 +130,7 @@ def check_run(folder: Path, kind: str, original_png: bytes):
         require(row['答案'] == 'A', 'Answer ownership changed')
         require('合成分析文本。' in row['解析'] and '合成详解文本。' in row['解析'], 'Analysis/detail merge lost content')
         require(row['困难程度'] in ['低', '中', '高'], 'Difficulty outside configured values')
-        require('请参考 0001.png' in row['optionA'] and '请参考 0001.png' in row['选择项'], 'Image option reference missing')
+        require('参考0001.png' in row['optionA'] and '参考0001.png' in row['选择项'], 'Image option reference missing')
         require((folder / 'export/images/0001.png').read_bytes() == original_png, 'Original PNG bytes changed')
         require(summary['exported_formulas']['converted'] == 1, 'Expected one real OMML conversion')
     else:

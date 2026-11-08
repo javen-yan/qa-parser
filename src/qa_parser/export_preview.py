@@ -114,7 +114,7 @@ def _images(root, manifest):
 
 
 def build_export_preview(export_dir: Path, source_name: str = '', *,
-                         formula_delimiter: str = '$$', image_reference: str = '请参考 {filename}') -> dict:
+                         formula_delimiter: str = '$$', image_reference: str = '参考{filename}') -> dict:
     root = Path(export_dir).resolve()
     manifest = json.loads((root / 'report.json').read_text(encoding='utf-8'))
     if manifest.get('schema_version') != 1:

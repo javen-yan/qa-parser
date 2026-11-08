@@ -60,7 +60,7 @@ def image_export(root, color):
     image = data.getvalue()
     (root / '0001.png').write_bytes(image)
     task = sample_task()
-    task['questions'][0]['options']['A'] = '图示，请参考 0001.png'
+    task['questions'][0]['options']['A'] = '图示，参考0001.png'
     task['assets'] = [{'filename': '0001.png', 'path': '0001.png', 'sha256': hashlib.sha256(image).hexdigest()}]
     export_task(task, root, root / 'export')
     # Distractors must never be recursively copied into customer ZIP.
@@ -84,7 +84,7 @@ def test_unpacked_excel_references_independent_images_and_only_manifest_payload(
         folder = tmp_path / 'unpacked' / f'{index:04d}-同名'
         with ZipFile(folder / 'questions.xlsx') as z:
             xml = ET.fromstring(z.read('xl/worksheets/sheet1.xml'))
-            assert '请参考 0001.png' in ''.join(xml.itertext())
+            assert '参考0001.png' in ''.join(xml.itertext())
         assert (folder / 'images/0001.png').read_bytes() == expected
         with Image.open(folder / 'images/0001.png') as image:
             image.verify()
