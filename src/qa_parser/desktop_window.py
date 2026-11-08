@@ -78,6 +78,9 @@ def main(argv=None) -> int:
     if args[:1] == ['--cli'] or os.environ.get('QA_PARSER_CLI_LOG'):
         _stdio_for_windowed_cli()
     if args[:1] == ['--cli']:
+        if os.environ.get('QA_PARSER_STARTUP_DIAGNOSTICS'):
+            import faulthandler
+            faulthandler.dump_traceback_later(20, file=sys.stderr)
         try:
             from .cli import main as cli_main
             return cli_main(args[1:])
@@ -106,7 +109,8 @@ def main(argv=None) -> int:
     # Never inherit a development cwd or depend on resources next to the app.
     process = subprocess.Popen(service_command(data), cwd=data, stdout=log, stderr=log,
                                start_new_session=os.name == 'posix',
-                               env=dict(os.environ, QA_PARSER_CLI_LOG=str(data / 'desktop.log')),
+                               env=dict(os.environ, QA_PARSER_CLI_LOG=str(data / 'desktop.log'),
+                                        **({'QA_PARSER_STARTUP_DIAGNOSTICS': '1'} if smoke else {})),
                                **({'creationflags': subprocess.CREATE_NO_WINDOW}
                                   if sys.platform == 'win32' else {}))
     instance = data / 'server.json'
@@ -123,7 +127,8 @@ def main(argv=None) -> int:
                     if sys.platform == 'darwin' and process.poll() is None:
                         sampled = subprocess.run(['/usr/bin/sample', str(process.pid), '1', '1'],
                                                  capture_output=True, text=True, timeout=10, check=False)
-                        print(sampled.stdout[:14000], flush=True)
+                        print(sampled.stdout.split('Binary Images:')[0][:6000], flush=True)
+                        print((data / 'desktop.log').read_text(encoding='utf-8', errors='replace')[-3000:], flush=True)
                 raise RuntimeError(f'转换服务未能启动，诊断文件：{data / "desktop.log"}')
             time.sleep(.1)
         origin = json.loads(instance.read_text(encoding='utf-8'))['url']
