@@ -115,6 +115,7 @@ def prepare(repo, release_id, targets, work, *, plan_only=False):
         filename = name if release['draft'] else f"qa-parser-{owner['tag']}-{target}-light.zip"
         archive = folder / filename
         if not plan_only:
+            print(f'Downloading and verifying {target} from Release {release_id}', flush=True)
             download(repo, item, archive)
             with ZipFile(archive) as z:
                 if z.testzip() is not None:
@@ -160,6 +161,7 @@ def upload_immutable(bucket, key, path):
         return 'already-identical'
     with path.open('rb') as stream:
         md5 = hashlib.file_digest(stream, 'md5').digest()
+    print(f'Uploading {key} ({path.stat().st_size} bytes)', flush=True)
     result = bucket.put_object_from_file(key, str(path), headers={
         'x-oss-forbid-overwrite': 'true', 'x-oss-meta-sha256': digest,
         'Content-MD5': base64.b64encode(md5).decode('ascii'),
@@ -176,6 +178,8 @@ def upload_immutable(bucket, key, path):
 
 def verify_public(url, size, digest=None):
     # No signed URL, access key, ACL mutation or public permission change.
+    if digest:
+        print(f'Verifying anonymous download SHA-256 ({size} bytes)', flush=True)
     with urlopen(Request(url, method='GET' if digest else 'HEAD'), timeout=60) as response:
         final = urlsplit(response.url)
         if final.scheme != 'https' or final.username or final.password or final.query or final.fragment:
