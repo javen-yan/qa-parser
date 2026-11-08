@@ -6,10 +6,36 @@ import signal
 import subprocess
 import sys
 import time
+import threading
 
 import pytest
 
 from qa_parser.desktop_window import service_command, stop_service
+
+
+def test_closed_callback_and_finalizer_stop_service_once(monkeypatch):
+    from qa_parser import desktop_window
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+    def cleanup(process):
+        calls.append(process)
+        entered.set()
+        assert release.wait(3)
+    monkeypatch.setattr(desktop_window, 'stop_service', cleanup)
+    process = object()
+    stop = desktop_window.service_stopper(process)
+    callback = threading.Thread(target=stop)
+    finalizer = threading.Thread(target=stop)
+    callback.start()
+    assert entered.wait(3)
+    finalizer.start()
+    release.set()
+    callback.join(3)
+    finalizer.join(3)
+    stop()
+    assert not callback.is_alive() and not finalizer.is_alive()
+    assert calls == [process]
 
 
 def test_service_command_preserves_unicode_paths_and_uses_no_browser(tmp_path, monkeypatch):

@@ -86,7 +86,9 @@ def main():
             else:
                 for key in list(env):
                     if key.startswith(('PYTHON','QA_PARSER_')):env.pop(key)
-                env['PATH']=os.pathsep.join([str(Path(env['SystemRoot'])/'System32'),env['SystemRoot']]) if sys.platform=='win32' else '/usr/bin:/bin:/usr/sbin:/sbin'
+                # os.environ is case-insensitive on Windows; a plain dict is not.
+                system_root=os.environ.get('SystemRoot', r'C:\Windows')
+                env['PATH']=os.pathsep.join([str(Path(system_root)/'System32'),system_root]) if sys.platform=='win32' else '/usr/bin:/bin:/usr/sbin:/sbin'
             request=work/'formulas.json';request.write_text(json.dumps(CASES));result=work/'raster.json'
             execute(cmd,['_rasterize-formulas',request,result],env,work/'raster.log')
             raster=json.loads(result.read_text());assert len(raster)==len(CASES)
