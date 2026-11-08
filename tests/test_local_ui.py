@@ -200,3 +200,16 @@ def test_export_preview_uses_actual_rows_and_rejects_invalid_index(tmp_path):
     for index in (-1, 1, True, '0'):
         with pytest.raises(UIError):
             app.read_export_preview(index)
+
+
+def test_loopback_server_starts_without_reverse_dns(tmp_path, monkeypatch):
+    import socket
+    def forbidden(*args, **kwargs):
+        raise AssertionError('Offline UI startup must not perform reverse DNS')
+    monkeypatch.setattr(socket, 'getfqdn', forbidden)
+    monkeypatch.setattr(socket, 'gethostbyaddr', forbidden)
+    app = Application(tmp_path / 'state', tmp_path / 'out')
+    with LocalServer(app) as server:
+        assert server.server_name == '127.0.0.1'
+        assert server.server_port > 0
+        assert server.origin == f'http://127.0.0.1:{server.server_port}'

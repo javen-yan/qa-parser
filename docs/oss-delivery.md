@@ -18,3 +18,5 @@
 上传带 Content-MD5、SDK CRC 校验及 `x-oss-forbid-overwrite`。同名已存在时核对实际内容 SHA-256，内容不同则失败，不覆盖。完成后匿名 HEAD 检查下载链接与长度；不可公开访问时报告失败，不自动扩大权限。日志和 Actions summary 给出成功链接，不依赖 artifact 存储。不能把 plan-only 成功当作上传成功。
 
 当前 Windows 已验证候选的 Release ID 为 `438026570`。Mac 原生启动检查仍在修复；真实客户环境、签名公证和系统导入仍未验收。四项非凭据配置已由主任务确认写入；两项访问凭据未确认，因此尚未实际上传 OSS。
+
+GitHub 草稿可见性要求 push 权限，因此此手动工作流的 GITHUB_TOKEN 使用 `contents: write`；脚本对 GitHub 只发 GET，不创建、修改或发布 Release，checkout 不保留凭据。参见 https://docs.github.com/en/rest/releases/releases 。

@@ -15,7 +15,9 @@ on:
         type: boolean
         default: true
 permissions:
-  contents: read
+  # GitHub requires push access to see private draft Release assets.
+  # The script performs only GET requests; checkout keeps no credentials.
+  contents: write
 concurrency:
   group: oss-${{ inputs.release_id }}-${{ inputs.target }}
   cancel-in-progress: false

@@ -10,6 +10,7 @@ import hashlib
 import logging
 import os
 import secrets
+from socketserver import TCPServer
 import shutil
 import threading
 import urllib.parse
@@ -307,6 +308,12 @@ class Application:
 
 class LocalServer(ThreadingHTTPServer):
     daemon_threads = True
+    def server_bind(self):
+        # Loopback identity is numeric and fixed. HTTPServer.server_bind does
+        # reverse DNS, which can block offline startup on macOS.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
     def __init__(self, app: Application, port=0):
         self.app = app
         super().__init__(("127.0.0.1", port), Handler)
