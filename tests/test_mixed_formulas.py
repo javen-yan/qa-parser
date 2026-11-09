@@ -1,42 +1,20 @@
 import io
-import json
 from pathlib import Path
-from copy import deepcopy
-from zipfile import ZipFile
-
 from PIL import Image, ImageDraw
 import pytest
-
 from qa_parser.config import digest
 from qa_parser.formula_policy import decide, apply_field_context
 from qa_parser.core import parse_document, load_task, validate_task, export_document
 from test_core import p, write_docx
 
+@pytest.mark.parametrize('latex', ['R_1','R_2','R_x','I_1R_x=I_2R_0',r'R_x=\frac{I_2R_0}{I_1}',
+    'x_1^2',r'\frac{a}{\frac{b}{c}}',r'\xrightarrow{\text{加热}}',r'\begin{pmatrix}a&b\\c&d\end{pmatrix}'])
+def test_reliable_scientific_formulas_stay_text(latex):
+    assert decide(latex)['mode']=='text'
 
-@pytest.mark.parametrize('latex', ['U=IR', 'R_x', 'S_{1}', r'R=\frac{U}{I}', r'x^2+y^2', r'\sqrt{x}'])
-def test_simple_scientific_text_is_kept(latex):
-    assert decide(latex)['mode'] == 'text'
-
-
-@pytest.mark.parametrize('latex,reason', [
-    ('I_1R_x=I_2R_0', 'multiple_subscripts_emphasis_risk'),
-    (r'R_x=\frac{I_2R_0}{I_1}', 'multiple_subscripts_emphasis_risk'),
-    ('x_1^2', 'combined_subscript_superscript'),
-    (r'\frac{a}{\frac{b}{c}}', 'structure_outside_conservative_text_subset'),
-    (r'\xrightarrow{加热}', 'structure_outside_conservative_text_subset'),
-    ('I<em>2R</em>0', 'formula_contains_markup_or_delimiter'),
-])
-def test_risks_have_explainable_decisions(latex, reason):
-    assert decide(latex)['reason'] == reason
-    assert decide(latex)['mode'] != 'text'
-
-
-def test_chinese_between_simple_subscripts_cannot_hide_field_pairing_risk():
-    formulas = {'F1': {'latex':'R_x'}, 'F2':{'latex':'R_0'}}
-    policies = {key:decide(f['latex']) for key,f in formulas.items()}
-    apply_field_context(['F1','F2'],formulas,policies)
-    assert all(p['reason']=='multiple_subscript_formulas_in_same_field' for p in policies.values())
-
+@pytest.mark.parametrize('latex', ['x^^2','x__1',r'\frac{a}{b','I<em>2R</em>0',r'\chemfig{C-C}'])
+def test_uncertain_syntax_or_diagrams_require_evidence(latex):
+    assert decide(latex)['mode']=='review'
 
 def fake_native(formulas):
     # Controlled backend tests resource ownership, not rendering fidelity.
@@ -62,81 +40,44 @@ def install_adapter(monkeypatch):
     monkeypatch.setattr('qa_parser.formulas.convert_omml',convert)
 
 
-def test_field_context_mixed_export_and_reload_binding(tmp_path,monkeypatch):
+def test_same_field_scripts_stay_text_without_native_renderer(tmp_path,monkeypatch):
     install_adapter(monkeypatch)
-    monkeypatch.setattr('qa_parser.formula_raster.render_formulas',fake_native)
+    def no_raster(xs):
+        assert not xs, 'Correct formulas must not need native image rendering'
+        return {}
+    monkeypatch.setattr('qa_parser.formula_raster.render_formulas',no_raster)
     report=parse_document(source(tmp_path),'choice',tmp_path/'task')
     assert report['passed']==1
     task,root=load_task(tmp_path/'task')
-    q=task['questions'][0]
-    assert r'$$R=\frac{U}{I}$$' in q['analysis']
-    assert '参考0001.png与参考0002.png' in q['analysis']
-    assert [f['status'] for f in task['formulas']]==['converted','image','image']
-    assert len({a['filename'] for a in task['assets']})==2
-    assert validate_task(task,root)['passed']==1
-    exported=export_document(root,tmp_path/'export')
-    assert len(exported['images'])==2
-    changed=deepcopy(task);changed['formulas'][1]['latex']='R_z'
-    with pytest.raises(ValueError, match='metadata changed'):
-        validate_task(changed,root)
-    from qa_parser.core import _metadata_digest
-    changed['metadata_sha256'] = _metadata_digest(changed)
-    assert validate_task(changed,root)['passed']==0
-    changed=deepcopy(task);changed['formulas'][1]['raster_evidence']['renderer_resources_sha256']='b'*64
-    with pytest.raises(ValueError, match='metadata changed'):
-        validate_task(changed,root)
-    from qa_parser.core import _metadata_digest
-    changed['metadata_sha256'] = _metadata_digest(changed)
-    assert validate_task(changed,root)['passed']==0
+    assert '$$R_x$$与$$R_0$$' in task['questions'][0]['analysis']
+    assert all(f['status']=='converted' for f in task['formulas'])
+    assert not task['assets'] and validate_task(task,root)['passed']==1
+    assert export_document(root,tmp_path/'export')['images']==[]
 
 
-def test_unavailable_native_renderer_does_not_silently_keep_risky_text(tmp_path,monkeypatch):
-    install_adapter(monkeypatch)
-    monkeypatch.setattr('qa_parser.formula_raster.render_formulas',lambda xs:{x:{'status':'failed','reason':'platform unavailable'} for x in xs})
-    report=parse_document(source(tmp_path),'choice',tmp_path/'task')
-    assert report['passed']==0
-    assert any('platform unavailable' in i['message'] for i in report['questions'][0]['issues'])
-    assert any(i['code']=='formula_review' for i in report['questions'][0]['issues'])
+def test_field_context_never_rasterizes_correct_delimited_formulas():
+    formulas={'F1':{'latex':'R_x'},'F2':{'latex':'R_0'}}
+    policies={key:decide(value['latex']) for key,value in formulas.items()}
+    apply_field_context(['F1','F2'],formulas,policies)
+    assert all(p['mode']=='text' for p in policies.values())
 
 
-def test_unvalidated_platform_is_explicit(monkeypatch):
-    import qa_parser.formula_raster as raster
-    monkeypatch.setattr(raster.sys,'platform','linux')
-    assert raster.render_formulas(['x_1+x_2'])['x_1+x_2']['status']=='failed'
-
-
-def test_combined_options_cell_checks_cross_option_subscripts(tmp_path, monkeypatch):
-    install_adapter(monkeypatch)
-    monkeypatch.setattr('qa_parser.formula_raster.render_formulas', fake_native)
-    body=p('1．选择正确答案')+'<w:p><w:r><w:t>A．</w:t></w:r><m:oMath><m:r><m:t>left</m:t></m:r></m:oMath></w:p>'
-    body+='<w:p><w:r><w:t>B．</w:t></w:r><m:oMath><m:r><m:t>right</m:t></m:r></m:oMath></w:p>'+p('C．甲 D．乙')+p('【答案】A')
-    source=write_docx(tmp_path/'1.docx',body)
-    report=parse_document(source,'choice',tmp_path/'task')
-    assert report['passed']==1
-    task,_=load_task(tmp_path/'task')
-    assert all(f['status']=='image' for f in task['formulas'])
-    assert all(f['output_policy']['reason']=='multiple_subscript_formulas_in_same_field' for f in task['formulas'])
-
-
-def test_reliable_original_preview_precedes_rerender_and_keeps_resource_order(tmp_path, monkeypatch):
+def test_unknown_formula_uses_only_verified_original_preview(tmp_path,monkeypatch):
     from qa_parser.mixed_formulas import apply_mixed_formulas
     preview=b'bound-original';(tmp_path/'preview.wmf').write_bytes(preview)
-    f={'id':'F000001','status':'converted','latex':'x_1+x_2','location':'p/1',
+    f={'id':'F000001','status':'converted','latex':'I<em>2</em>','location':'p/1',
        'source':{'path':'source.xml','sha256':'b'*64},
        'preview':{'path':'preview.wmf','sha256':digest(preview)},'preview_binding':{'verified':True}}
     q={'stem':'⟦I000001⟧⟦F000001⟧','answer':'A','analysis':'','options':{}}
-    assets=[{'id':'I000001','filename':'0001.jpg','extension':'jpg'}]
-    def original(data,ext):
-        assert data==preview and ext=='.wmf'
-        return fake_native(['x'])['x']
-    monkeypatch.setattr('qa_parser.formula_images.preview_to_png',original)
-    def native(xs):
-        assert not xs, 'Reliable original must not be replaced with reinterpreted TeX'
+    assets=[{'id':'I000001','filename':'001.jpg','extension':'jpg'}]
+    monkeypatch.setattr('qa_parser.formula_images.preview_to_png',lambda data,ext:fake_native(['x'])['x'])
+    def no_raster(xs):
+        assert not xs, 'Unreliable TeX must never be guessed and redrawn'
         return {}
-    monkeypatch.setattr('qa_parser.formula_raster.render_formulas',native)
+    monkeypatch.setattr('qa_parser.formula_raster.render_formulas',no_raster)
     blocks=[{'tokens':[{'kind':'image','id':'I000001'},{'kind':'formula','id':'F000001'}]}]
-    apply_mixed_formulas([q],[f],assets,blocks,tmp_path,{'choice_columns':[]})
-    assert [a['filename'] for a in assets]==['0001.jpg','0002.png']
+    apply_mixed_formulas([q],[f],assets,blocks,tmp_path,{})
+    assert [a['filename'] for a in assets]==['001.jpg','002.png']
     assert f['status']=='image' and assets[1]['origin']=='formula_preview'
     assert assets[1]['source_preview_sha256']==digest(preview)
 

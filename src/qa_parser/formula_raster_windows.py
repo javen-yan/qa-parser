@@ -30,6 +30,11 @@ def crop_capture(data, rect):
 
 
 def native_main(input_path, output_path):
+    import sys
+    if getattr(sys, 'frozen', False):
+        from .startup_diagnostics import auto_recover
+        from .desktop import user_data_directory
+        auto_recover(Path(sys.executable).parent, user_data_directory() / 'diagnostics/startup-recovery.json')
     import webview
     from .desktop_window import configure_windows_runtime
     configure_windows_runtime(webview)

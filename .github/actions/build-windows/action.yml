@@ -62,6 +62,11 @@ runs:
       run: |
         python scripts/windows_smoke.py --exe 'dist/windows/题库转换/题库转换.exe' --out 'build/中文 Windows smoke' --gui
         if ($LASTEXITCODE -ne 0) { throw 'Frozen application smoke failed' }
+    - name: Startup diagnostics and controlled Internet-zone reproduction
+      shell: pwsh
+      run: |
+        python scripts/windows_startup_smoke.py --exe 'build/中文 Windows smoke/中文 解压/题库转换/题库转换.exe' --out 'build/Windows startup diagnostics'
+        if ($LASTEXITCODE -ne 0) { throw 'Startup diagnostics regression failed' }
     - name: Mixed formula business and native capture checks
       shell: pwsh
       run: |
@@ -71,7 +76,7 @@ runs:
       shell: pwsh
       run: |
         Copy-Item 'build/中文 Windows smoke/portable-candidate.zip' 'dist/qa-parser-windows-x64-candidate.zip'
-        python scripts/candidate_metadata.py --archive dist/qa-parser-windows-x64-candidate.zip --smoke 'build/中文 Windows smoke/smoke-report.json' --target windows-x64 --output dist/release-metadata.json --runtime-lock packaging/windows-runtime-lock.json
+        python scripts/candidate_metadata.py --archive dist/qa-parser-windows-x64-candidate.zip --smoke 'build/中文 Windows smoke/smoke-report.json' --target windows-x64 --output dist/release-metadata.json --runtime-lock packaging/windows-runtime-lock.json --startup 'build/Windows startup diagnostics/summary.json'
         if ($LASTEXITCODE -ne 0) { throw 'Candidate metadata validation failed' }
         Get-FileHash 'dist/qa-parser-windows-x64-candidate.zip' -Algorithm SHA256 | Format-List | Out-File 'build/windows-zip-sha256.txt'
         @'
@@ -101,6 +106,7 @@ runs:
           build/windows/build-manifest.json
           build/windows-zip-sha256.txt
           build/windows-acceptance-scope.txt
+          build/Windows startup diagnostics/*.json
           build/中文 Windows smoke/smoke-report.json
           build/中文 Windows smoke/native-window.json
           build/中文 Windows smoke/native-wmf.json

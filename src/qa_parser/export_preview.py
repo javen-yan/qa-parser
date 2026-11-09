@@ -129,9 +129,17 @@ def build_export_preview(export_dir: Path, source_name: str = '', *,
     if not isinstance(formula_delimiter, str) or not 1 <= len(formula_delimiter) <= 16:
         raise ValueError('Invalid formula delimiter for display')
     pictures = _images(root, manifest)
-    if image_reference is None:
-        image_reference = manifest.get('image_reference', '参考{filename}')
-    references = {image_reference.format(filename=name): asset for name, asset in pictures.items()}
+    if image_reference is None and 'image_reference_map' in manifest:
+        aliases = manifest['image_reference_map']
+        if (not isinstance(aliases, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in aliases.items())
+            or set(aliases.values()) != set(pictures) or len(aliases) != len(pictures)
+            or any(ref != manifest['image_reference'].format(filename=name) for ref, name in aliases.items())):
+            raise ValueError('Invalid image reference mapping')
+        references = {ref: pictures[name] for ref, name in aliases.items()}
+    else:
+        if image_reference is None:
+            image_reference = manifest.get('image_reference', '参考{filename}')
+        references = {image_reference.format(filename=name): asset for name, asset in pictures.items()}
     if len(references) != len(pictures) or any(not value for value in references):
         raise ValueError('Image reference format is ambiguous')
     delimiter = re.escape(formula_delimiter)

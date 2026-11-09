@@ -25,7 +25,7 @@ def apply_mixed_formulas(questions, formulas, assets, blocks, root, config):
     pending = []
     def attach(f, result, origin):
         iid = f'I{len(assets)+1:06d}'
-        name = f'{len(assets)+1:04d}.png'
+        name = f'{len(assets)+1:03d}.png'
         resource = _save_bytes(root, f'assets/{name}', result['png'])
         asset = {'id': iid, 'filename': name, 'extension': 'png', 'location': f['location'],
                  'origin': origin, 'formula_id': f['id'], 'engine': result['engine'],
@@ -82,4 +82,4 @@ def apply_mixed_formulas(questions, formulas, assets, blocks, root, config):
                 aid = fmap[token['id']].get('fallback_asset_id')
             if aid in amap and aid not in seen:
                 seen.add(aid)
-                amap[aid]['filename'] = f'{len(seen):04d}.' + amap[aid]['extension']
+                amap[aid]['filename'] = f'{len(seen):03d}.' + amap[aid]['extension']

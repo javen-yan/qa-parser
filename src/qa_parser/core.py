@@ -112,7 +112,7 @@ def _prepare_blocks(document: dict, root: Path, config: dict):
                             entry["fallback_error"] = image_result.get("reason", "Original preview conversion failed")
                         else:
                             iid = f"I{len(assets)+1:06d}"
-                            filename = f"{len(assets)+1:04d}.png"
+                            filename = f"{len(assets)+1:03d}.png"
                             image_resource = _save_bytes(root, f"assets/{filename}", image_result["png"])
                             assets.append({"id": iid, "filename": filename, "extension": "png", "location": loc,
                                            "origin": "formula_preview", "formula_id": fid,
@@ -131,7 +131,7 @@ def _prepare_blocks(document: dict, root: Path, config: dict):
                 ext = str(token.get("extension", "bin")).lstrip(".").lower()
                 if not re.fullmatch("[a-z0-9]{1,8}", ext):
                     ext = "bin"
-                filename = f"{len(assets)+1:04d}.{ext}"
+                filename = f"{len(assets)+1:03d}.{ext}"
                 resource = _save_bytes(root, f"assets/{filename}", token["data"])
                 assets.append({"id": iid, "filename": filename, "extension": ext, "location": loc, "review_reason": token.get("review_reason", ""), **resource})
                 converted["tokens"].append({"kind": "image", "id": iid, "location": loc})
@@ -351,7 +351,9 @@ def validate_task(task: dict, task_dir: Path, source: Path | None = None) -> dic
                 q["issues"].append(issue("formula_review", reason, f.get("location", "") if f else q["location"], formula_id=fid))
             elif f["source"]["path"] in broken:
                 q["issues"].append(issue("formula_evidence", "Formula evidence changed or missing", f["location"], formula_id=fid))
-        for filename in q["asset_filenames"]:
+        from .image_references import referenced_names
+        referenced = referenced_names('\n'.join([q['stem'], q['answer'], q['analysis'], *q['options'].values()]), config['image_reference'])
+        for filename in sorted(set(q["asset_filenames"]) | referenced):
             a = amap.get(filename)
             if not a or a["path"] in broken:
                 q["issues"].append(issue("image_missing", f"Missing or changed image {filename}", q["location"]))

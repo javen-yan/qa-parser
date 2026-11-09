@@ -27,11 +27,11 @@
   "question_type": "",
   "formula_delimiter": "$$",
   "formula_fallback": "image",
-  "image_reference": "参考{filename}",
+  "image_reference": "参考aaa{filename})",
   "difficulty_levels": [
-    "低",
+    "易",
     "中",
-    "高"
+    "难"
   ],
   "difficulty_seed": "qa-parser-v1",
   "field_defaults": {},

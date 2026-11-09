@@ -57,7 +57,7 @@ def _document_report(row: dict) -> str:
     if row.get('export'):
         stem = Path(row['name']).stem
         lines.extend([f'题库位于压缩包根目录 {stem}.xlsx；图片位于根目录 {stem}/ 文件夹。',
-                      f'“参考0001.png”等引用对应 {stem}/0001.png；不同文件的图片编号独立。'])
+                      f'“参考aaa001.png)”等引用对应 {stem}/001.png；不同文件的图片编号独立。'])
     if row.get('export_preview'):
         lines.append('题目预览：题目预览.html。请保留整个解压目录。')
     return '\n'.join(lines) + '\n'
