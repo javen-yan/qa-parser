@@ -41,6 +41,9 @@ def _document_report(row: dict) -> str:
         lines.append('题目总数及未导出题号：无法读取或识别，不能确认数量。')
     else:
         lines.append(f"共 {total} 题，已导出 {row.get('passed') or 0} 题，未导出 {row.get('quarantined') or 0} 题。")
+    counts = row.get('counts', {})
+    if counts:
+        lines.append(f"原题/题组 {counts['original_questions']}；题组展开子题 {counts['subquestions']}；输出单元 {counts['output_units']}；已导出 {counts['exported']}；按策略跳过 {counts['policy_skipped']}；失败或待复核 {counts['failed_or_review']}。")
     reasons = row.get('reasons', [])
     if reasons:
         lines.append('原因：' + '；'.join(reasons))
@@ -58,6 +61,9 @@ def _document_report(row: dict) -> str:
         stem = Path(row['name']).stem
         lines.extend([f'题库位于压缩包根目录 {stem}.xlsx；图片位于根目录 {stem}/ 文件夹。',
                       f'“参考aaa001.png)”等引用对应 {stem}/001.png；不同文件的图片编号独立。'])
+        manifest = json.loads((Path(row['export']) / 'report.json').read_text(encoding='utf-8'))
+        if len(manifest.get('sheets', [])) > 1:
+            lines.append('混合题型分别位于“选择”和“考点”工作表；目标系统的多工作表导入尚未验证。')
     if row.get('export_preview'):
         lines.append('题目预览：题目预览.html。请保留整个解压目录。')
     return '\n'.join(lines) + '\n'

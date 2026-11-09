@@ -450,7 +450,6 @@ def parse_document(source: Path, kind: str, out_dir: Path, config: dict | None =
                 document_issues.append(problem)
         if not questions:
             document_issues.append(issue("no_questions", "No numbered questions detected"))
-        heading = "\n".join(b["text"] for b in preamble)
         task = {"schema_version": 2, "parser_version": "composite-1", "kind": actual_kind, "structure": structure, "source": {"name": source.name, "original_path": str(source.resolve()), "sha256": digest(data), "snapshot": snapshot}, "config": config, "config_sha256": config_digest(config), "blocks": blocks, "preamble_block_indices": [b["index"] for b in preamble], "questions": questions, "formulas": formulas, "assets": assets, "document_issues": document_issues}
         task["questions_sha256"] = digest(json.dumps(questions, sort_keys=True, ensure_ascii=False).encode())
         task["metadata_sha256"] = _metadata_digest(task)
@@ -535,7 +534,7 @@ def run_document(source: Path, kind: str, out_dir: Path, config: dict | None = N
             exported_formulas = [f for f in task["formulas"] if f["id"] in exported_formula_ids]
             summary = {"schema_version": 1, "status": status, "source": source.name,
                        "total": report["total"], "passed": len(included), "quarantined": len(quarantined),
-                       "counts": {**report["counts"], "exported": len(included)},
+                       "counts": question_counts([*included, *quarantined], task.get("structure", {})),
                        "formulas": report["formulas"], "exported_formulas": formula_counts(exported_formulas),
                        "questions_with_formula_images": sum(any(f["status"] == "image" and f["id"] in q["formula_ids"] for f in exported_formulas) for q in included),
                        "document_issues": report["document_issues"],
