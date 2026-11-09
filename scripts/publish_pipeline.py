@@ -70,7 +70,8 @@ def main():
             release_draft.finalize(repo, args.release_id,
                 release_draft.identity(repo, str(owner['run_id']), owner['commit']), args.work / 'finalize',
                 keep_draft=True, assembler=source_assembler(owner['commit'], args.work))
-        sync(['--repo', repo, '--release-id', args.release_id, '--target', 'all', '--work', str(args.work / 'oss')])
+        sync(['--repo', repo, '--release-id', args.release_id, '--target', 'all', '--work', str(args.work / 'oss'),
+              '--archive-cache', str(args.work / 'finalize/inputs')])
         receipt = json.loads((args.work / 'oss/delivery-record.json').read_text())
     (args.evidence / 'delivery-record.json').write_text(json.dumps(receipt, indent=2))
     archived = cleanup(repo, args.release_id, receipt, apply=True, verify_native_jobs=True)

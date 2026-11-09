@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
 from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
@@ -67,7 +68,7 @@ def download(repo, item, path):
     check_asset(path, item)
 
 
-def prepare(repo, release_id, targets, work, *, plan_only=False):
+def prepare(repo, release_id, targets, work, *, plan_only=False, archive_cache=None):
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo):
         raise ValueError('Invalid repository')
     if not re.fullmatch(r'[1-9][0-9]*', str(release_id)):
@@ -117,7 +118,12 @@ def prepare(repo, release_id, targets, work, *, plan_only=False):
         archive = folder / filename
         if not plan_only:
             print(f'Downloading and verifying {target} from Release {release_id}', flush=True)
-            download(repo, item, archive)
+            cached = Path(archive_cache) / target / name if archive_cache else None
+            if cached is not None and cached.is_file():
+                check_asset(cached, item)
+                shutil.copyfile(cached, archive)
+            else:
+                download(repo, item, archive)
             with ZipFile(archive) as z:
                 if z.testzip() is not None:
                     raise ValueError('Release archive CRC check failed')
@@ -263,10 +269,11 @@ def main(argv=None):
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--plan-only', action='store_true')
     parser.add_argument('--cleanup-draft', action='store_true')
+    parser.add_argument('--archive-cache', type=Path)
     args = parser.parse_args(argv)
     cfg = None if args.plan_only else settings(os.environ)
     targets = TARGETS if args.target == 'all' else (args.target,)
-    report = prepare(args.repo, args.release_id, targets, args.work, plan_only=args.plan_only)
+    report = prepare(args.repo, args.release_id, targets, args.work, plan_only=args.plan_only, archive_cache=args.archive_cache)
     if not args.plan_only:
         import oss2
         bucket = oss2.Bucket(oss2.AuthV4(cfg['access_key_id'], cfg['access_key_secret']),

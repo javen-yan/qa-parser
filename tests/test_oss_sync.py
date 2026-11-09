@@ -93,6 +93,11 @@ def test_prepare_download_gate_and_plan(sync,tmp_path,monkeypatch):
     assert report['status']=='planned' and calls==[2]
     report=sync.prepare('test/repo','123',(target,),tmp_path/'real')
     assert report['status']=='downloaded-and-verified' and calls==[2,2,1]
+    report=sync.prepare('test/repo','123',(target,),tmp_path/'cached',archive_cache=tmp_path/'real')
+    assert report['status']=='downloaded-and-verified' and calls==[2,2,1,2]
+    (tmp_path/'real'/target/f'qa-parser-{target}-candidate.zip').write_bytes(b'corrupt')
+    with pytest.raises(ValueError,match='digest/state/size'):
+        sync.prepare('test/repo','123',(target,),tmp_path/'corrupt-cache',archive_cache=tmp_path/'real')
     items[f'qa-parser-{target}-candidate.zip']['digest']='sha256:'+'0'*64
     with pytest.raises(ValueError,match='checksum gate'):
         sync.prepare('test/repo','123',(target,),tmp_path/'bad')
