@@ -1,6 +1,7 @@
 """Bounded official GitHub ranges; tokens and signed URLs stay in memory."""
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -9,7 +10,7 @@ import subprocess
 import time
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 BLOCK_SIZE = 8 * 1024**2
 
@@ -77,21 +78,23 @@ def download(endpoint, item, output):
         part = parts / f'{a}-{b}'
         if part.exists() and part.stat().st_size == b - a + 1:
             return part
-        for attempt in range(4):
-            try:
-                req = Request(url, headers={'Range': f'bytes={a}-{b}'})
-                with urlopen(req, timeout=60) as response, part.with_suffix('.partial').open('wb') as stream:
-                    if response.status != 206 or response.headers.get('Content-Range') != f'bytes {a}-{b}/{size}':
-                        raise ValueError('Server did not honor the exact requested range')
-                    shutil.copyfileobj(response, stream)
-                if part.with_suffix('.partial').stat().st_size != b - a + 1:
-                    raise OSError('Incomplete range')
-                part.with_suffix('.partial').replace(part)
-                return part
-            except OSError:
-                if attempt == 3:
-                    raise RuntimeError('Official asset range download failed') from None
-                time.sleep(attempt + 1)
+        temporary = part.with_suffix('.partial')
+        result = subprocess.run(['curl', '--silent', '--show-error', '--fail', '--config', '-',
+            '--range', f'{a}-{b}', '--connect-timeout', '15', '--max-time', '180',
+            '--retry', '3', '--retry-all-errors', '--retry-delay', '1',
+            '--dump-header', '-', '--output', str(temporary), '--write-out', '\n%{http_code}'],
+            input=('url = ' + json.dumps(url) + '\n').encode(), capture_output=True)
+        headers = result.stdout.decode(errors='replace')
+        status = headers.strip().splitlines()[-1] if headers.strip() else 'unknown'
+        if result.returncode:
+            raise RuntimeError(f'Official asset range failed (curl {result.returncode}, HTTP {status})')
+        ranges = re.findall(r'(?im)^content-range:\s*([^\r\n]+)', headers)
+        if status != '206' or not ranges or ranges[-1] != f'bytes {a}-{b}/{size}':
+            raise ValueError('Server did not honor the exact requested range')
+        if temporary.stat().st_size != b - a + 1:
+            raise ValueError('Incomplete official asset range')
+        temporary.replace(part)
+        return part
     with ThreadPoolExecutor(max_workers=8) as pool:
         downloaded = list(pool.map(fetch, blocks))
     assembled = complete.with_suffix('.partial')

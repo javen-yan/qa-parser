@@ -1,6 +1,7 @@
 import hashlib
 import importlib
 import io
+from types import SimpleNamespace
 from pathlib import Path
 from urllib.error import HTTPError
 import pytest
@@ -25,17 +26,14 @@ def test_official_ranges_preserve_prefix_and_require_full_sha(monkeypatch, tmp_p
             raise HTTPError('api', 302, '', {'Location': f'https://{host}/asset?secret-signature'}, None)
     monkeypatch.setattr(d, 'build_opener', lambda *a: Opener())
     ranges = []
-    class Response(io.BytesIO):
-        status = 206
-    def urlopen(request, timeout):
-        assert request.get_header('Authorization') is None
-        a, b = map(int, request.get_header('Range').removeprefix('bytes=').split('-'))
+    def run(args, input, capture_output):
+        assert 'secret-signature' not in ' '.join(args) and 'secret-test-token' not in ' '.join(args)
+        assert b'secret-signature' in input and b'secret-test-token' not in input
+        a, b = map(int, args[args.index('--range')+1].split('-'))
         ranges.append((a, b))
-        result = Response(data[a:b+1])
-        result.headers = {'Content-Range': f'bytes {a}-{b}/{len(data)}'}
-        if fault == 'range': result.status = 200
-        return result
-    monkeypatch.setattr(d, 'urlopen', urlopen)
+        Path(args[args.index('--output')+1]).write_bytes(data[a:b+1])
+        return SimpleNamespace(returncode=0,stdout=f'Content-Range: bytes {a}-{b}/{len(data)}\r\n\n{200 if fault=="range" else 206}'.encode())
+    monkeypatch.setattr(d.subprocess, 'run', run)
     item = dict(name='native.zip', size=len(data), digest='sha256:'+digest)
     out = tmp_path/'native.zip'
     if fault:
