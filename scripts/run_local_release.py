@@ -60,8 +60,15 @@ def main():
     name = 'qa-release-once-' + uuid.uuid4().hex[:12]
     try:
         archive = root / 'runner.tar.gz'
-        with urlopen(item['download_url'], timeout=60) as response, archive.open('wb') as target:
-            shutil.copyfileobj(response, target)
+        for attempt in range(4):
+            try:
+                with urlopen(item['download_url'], timeout=60) as response, archive.open('wb') as target:
+                    shutil.copyfileobj(response, target)
+                break
+            except (OSError, EOFError):
+                if attempt == 3:
+                    raise
+                time.sleep(attempt + 1)
         with archive.open('rb') as stream:
             if hashlib.file_digest(stream, 'sha256').hexdigest() != item['sha256_checksum']:
                 raise ValueError('Runner SHA-256 differs')

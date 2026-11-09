@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 import tomllib
 from urllib.parse import quote
 
@@ -29,6 +30,17 @@ def sha(path):
 
 
 def api(endpoint, *, method='GET', payload=None, file=None, content_type=None, output=None):
+    for attempt in range(4):
+        try:
+            return _api_once(endpoint, method=method, payload=payload, file=file, content_type=content_type, output=output)
+        except RuntimeError as error:
+            transient = any(s in str(error) for s in ('EOF', 'TLS handshake timeout', 'connection reset', 'HTTP 502', 'HTTP 503', 'HTTP 504'))
+            if method != 'GET' or not transient or attempt == 3:
+                raise
+            time.sleep(attempt + 1)
+
+
+def _api_once(endpoint, *, method='GET', payload=None, file=None, content_type=None, output=None):
     args = ['gh', 'api', endpoint, '--method', method, '-H', f'X-GitHub-Api-Version: {API_VERSION}']
     if output is not None:
         args += ['-H', 'Accept: application/octet-stream']
