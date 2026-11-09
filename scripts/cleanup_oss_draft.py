@@ -146,7 +146,8 @@ def cleanup(repo, release_id, receipt, *, apply=False, verify_native_jobs=False)
     removed = []
     if apply:
         payload = {'body': body, 'tag_name': owner['tag'], 'target_commitish': owner['commit'],
-                   'draft': release['draft'], 'prerelease': prerelease, 'make_latest': 'true' if not prerelease else 'false'}
+                   'draft': release['draft'], 'prerelease': prerelease,
+                   'make_latest': 'true' if not prerelease and not release['draft'] else 'false'}
         api(f'repos/{repo}/releases/{release_id}', method='PATCH', payload=payload)
         saved = read_api(f'repos/{repo}/releases/{release_id}')
         if saved.get('body') != body or saved.get('tag_name') != owner['tag'] or saved.get('target_commitish') != owner['commit']:
