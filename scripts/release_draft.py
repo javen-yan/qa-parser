@@ -30,6 +30,11 @@ def sha(path):
 
 
 def api(endpoint, *, method='GET', payload=None, file=None, content_type=None, output=None):
+    if output is not None and method == 'GET' and re.fullmatch(r'repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/releases/assets/[1-9][0-9]*', endpoint):
+        metadata = api(endpoint)
+        if metadata.get('size', 0) > 16 * 1024**2:
+            from release_download import download
+            return download(endpoint, metadata, output)
     for attempt in range(4):
         try:
             return _api_once(endpoint, method=method, payload=payload, file=file, content_type=content_type, output=output)
@@ -228,17 +233,23 @@ def finalize(repo, release_id, owner, work, *, keep_draft=False, assembler=None)
             "此为手动草稿，不指定正式版本，不自动发布。真实9份题库未上传，不声称跨平台900/900；"
             "客户环境、签名公证和目标系统导入仍未验证。云端轻量版不含可选LibreOffice。\n",
             encoding='utf-8')
-    files = sorted(p for p in out.iterdir() if p.is_file())
-    expected = candidate_names | {p.name for p in files}
-    if set(current) - expected:
+    all_files = sorted(p for p in out.iterdir() if p.is_file())
+    # OSS delivery can rename the already verified candidate archive locally.
+    # Avoid uploading a second identical large ZIP to a private draft only to
+    # delete both aliases after mirroring. Accept aliases from older attempts.
+    files = [p for p in all_files if not keep_draft or p.suffix != '.zip']
+    allowed = candidate_names | {p.name for p in all_files}
+    expected = candidate_names | {p.name for p in files} | set(current)
+    if set(current) - allowed:
         raise ValueError('Unexpected assets in owned draft; will not publish')
     for path in files:
         upload(repo, release_id, owner, path)
     remote = assets(repo, release_id)
     if set(remote) != expected:
         raise ValueError('Final asset set incomplete or unexpected; draft retained')
-    for path in files:
-        check_asset(path, remote[path.name])
+    for path in all_files:
+        if path.name in remote:
+            check_asset(path, remote[path.name])
     for target in TARGETS:
         directory = inputs / target
         check_asset(directory / f'qa-parser-{target}-candidate.zip', remote[f'qa-parser-{target}-candidate.zip'])

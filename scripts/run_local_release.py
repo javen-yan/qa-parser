@@ -93,6 +93,7 @@ def main():
         runners = gh('api', f'repos/{REPO}/actions/runners')['runners']
         runner_id, = [r['id'] for r in runners if r['name'] == name]
         env['QA_RELEASE_EVIDENCE_DIR'] = str(args.evidence.resolve())
+        env['QA_RELEASE_DOWNLOAD_CACHE_DIR'] = str(args.evidence.resolve().parent / 'download-cache')
         env['PATH'] = '/opt/homebrew/bin:' + env.get('PATH', '')
         run_query = f'repos/{REPO}/actions/workflows/release.yml/runs?event=workflow_dispatch&branch=main&per_page=20'
         previous = {r['id'] for r in gh('api', run_query)['workflow_runs']}

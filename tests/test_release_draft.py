@@ -55,5 +55,5 @@ def test_owned_release_full_control_flow(tmp_path, monkeypatch, mode, keep_draft
         d.upload_candidate('test/repo', '123', owner, target, archive, metadata)
     d.finalize('test/repo', '123', owner, tmp_path / 'final', keep_draft=keep_draft)
     assert fake.release['draft'] == (mode == 'manual' or keep_draft)
-    assert len(fake.files) == (9 if mode == 'manual' else 12)
+    assert len(fake.files) == (9 if mode == 'manual' or keep_draft else 12)
     assert len(fake.patches) == 1
