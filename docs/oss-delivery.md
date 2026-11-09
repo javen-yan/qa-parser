@@ -1,3 +1,7 @@
+# OSS 分发说明
+
+当前入口已统一到 `release.yml`，旧 `oss-sync.yml` 与 `prune-releases.yml` 已停用移除。操作和恢复方式以 [统一发布流程](release-pipeline.md) 为准。下文保留历史实现及验收记录，旧 workflow 操作不再适用。
+
 # 可选 OSS 下载分发
 
 `oss-sync.yml` 只从本仓库已验证的 GitHub Release 下载二进制，不使用 Actions artifacts，默认计划模式不改 Release；实际同步可在完整验证后保留 Release 下载页面并清理已镜像附件。默认 `plan_only=true` 只检查来源、目标元数据与路径；不上传，也不下载大 ZIP。实际同步会下载 ZIP，核对 GitHub SHA-256、原生验证记录和 ZIP CRC，然后上传。

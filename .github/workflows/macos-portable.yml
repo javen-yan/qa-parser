@@ -1,12 +1,6 @@
 name: macOS native portable candidates
 
 on:
-  workflow_dispatch:
-    inputs:
-      upload_artifacts:
-        description: Upload Actions artifacts (requires storage quota)
-        type: boolean
-        default: false
   workflow_call:
     inputs:
       upload_artifacts:

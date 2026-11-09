@@ -31,7 +31,8 @@ def build_inputs(root, d):
   yield target,archive,metadata
 
 @pytest.mark.parametrize('mode', ['manual', 'tag'])
-def test_owned_release_full_control_flow(tmp_path, monkeypatch, mode):
+@pytest.mark.parametrize('keep_draft', [False, True])
+def test_owned_release_full_control_flow(tmp_path, monkeypatch, mode, keep_draft):
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / 'scripts'))
     d = importlib.import_module('release_draft')
     monkeypatch.delenv('GITHUB_OUTPUT', raising=False)
@@ -52,7 +53,7 @@ def test_owned_release_full_control_flow(tmp_path, monkeypatch, mode):
     for target, archive, metadata in build_inputs(tmp_path, d):
         d.upload_candidate('test/repo', '123', owner, target, archive, metadata)
         d.upload_candidate('test/repo', '123', owner, target, archive, metadata)
-    d.finalize('test/repo', '123', owner, tmp_path / 'final')
-    assert fake.release['draft'] == (mode == 'manual')
+    d.finalize('test/repo', '123', owner, tmp_path / 'final', keep_draft=keep_draft)
+    assert fake.release['draft'] == (mode == 'manual' or keep_draft)
     assert len(fake.files) == (9 if mode == 'manual' else 12)
     assert len(fake.patches) == 1

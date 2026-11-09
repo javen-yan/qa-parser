@@ -180,7 +180,7 @@ def upload_candidate(repo, release_id, owner, target, archive, metadata):
     upload(repo, release_id, owner, metadata, f'release-metadata-{target}.json')
 
 
-def finalize(repo, release_id, owner, work):
+def finalize(repo, release_id, owner, work, *, keep_draft=False, assembler=None):
     release, saved = owned(repo, release_id, owner)
     current = assets(repo, release_id)
     candidate_names = {f'qa-parser-{target}-candidate.zip' for target in TARGETS}
@@ -199,7 +199,7 @@ def finalize(repo, release_id, owner, work):
             check_asset(path, current[remote])
     out = work / 'assembled'
     if saved['mode'] == 'tag':
-        assemble(inputs, out, saved['tag'], owner['commit'])
+        (assembler or assemble)(inputs, out, saved['tag'], owner['commit'])
     else:
         checked = validate_candidates(inputs, owner['commit'])
         out.mkdir()
@@ -235,8 +235,8 @@ def finalize(repo, release_id, owner, work):
     # Marker persists so failed finalization can only resume this exact run.
     body = marker(saved) + '\n\n' + (out / 'RELEASE_NOTES.md').read_text(encoding='utf-8')
     manifest = json.loads((out / 'release-manifest.json').read_text(encoding='utf-8'))
-    publish = saved['mode'] == 'tag'
-    if publish:
+    publish = saved['mode'] == 'tag' and not keep_draft
+    if saved['mode'] == 'tag':
         # Ensure the original user tag is still present immediately before publish.
         check_tag_commit(repo, saved['tag'], owner['commit'])
     result = api(f'repos/{repo}/releases/{release_id}', method='PATCH', payload={

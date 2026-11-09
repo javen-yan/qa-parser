@@ -1,39 +1,33 @@
-# 原生发布与手动草稿
+# 统一发布入口
 
-`.github/workflows/release.yml`直接使用GitHub Release资产传递三个原生平台的ZIP和验证元数据，不使用Actions artifact上传/下载。它解决当前artifact存储额度对传递产物的阻碍，但不绕过GitHub Release自身的权限、单文件大小或服务限制；失败会明确停止，不转存OSS。
+GitHub Actions 只保留一个人工发布入口：`release.yml`（Build and publish release）。Windows/macOS 独立 workflow 仅供内部复用，不再单独手动触发；旧 OSS 自动接续和独立清理 workflow 已移除，避免重复发布。
 
-## 两种入口
+## 正常发布
 
-- 手动`workflow_dispatch`：只创建`candidate-<源码SHA前12位>-<run_id>`的新草稿，初始`draft=true`、`prerelease=true`。三个目标完成后补充校验清单和说明，仍保留草稿，不生成正式版本号，不自动发布。私有仓库中仅有对应访问权限的用户可查看和下载草稿资产。
-- 用户推送`v*`标签：仅接受与`pyproject.toml`一致的`vX.Y.Z`或`vX.Y.Z-rc.N/beta.N/alpha.N`。正式发布还必须通过`packaging/release-policy.json`的稳定版门槛；当前门槛未放行。脚本不会替用户创建正式标签或修改已有标签。
+推送经过授权的新版本 tag 后，自动完成：建立私有草稿 → 三平台原生构建和验证 → 汇总验证附件 → OSS 上传 → 所有对象匿名完整下载 SHA-256 校验 → 保存下载链接 → 清理已镜像附件并发布 Release。
 
-## 流程与权限
+手动 `operation=build` 用于 main 的候选版本，不凭空创建正式版本号。正式版仍由原始 tag、源码版本与发布政策决定。成功后原始题库、开发环境和密钥不进入客户包。
 
-准备任务创建一个新草稿，正文包含仓库、完整源码SHA、workflow run id、模式和标签的所有权标记。若该标签已有Release，立即失败，不接管、覆盖或删除它。正式标签在准备和发布前都递归解析至commit，必须仍指向本次源码。
+## 失败恢复
 
-Windows x64使用`windows-2022`；Mac ARM64使用`macos-15`；Mac x86_64使用`macos-15-intel`。它们调用与普通CI相同的本地composite actions，传入`upload-artifacts: 'false'`，实际执行回归、冻结程序和原生窗口检查。控制任务的runner不产生Linux产品，本流程不构建Linux包。
+选择同一入口的 `operation=resume`，填写原 `release_id`。prepare、Windows、Mac 构建全部跳过；只核实原生产 run 的仓库、源码、tag、原生任务和每个执行步骤，再复用附件继续。
 
-每个原生任务成功后向同一个草稿上传：
+原生任务失败时拒绝恢复发布。允许原生任务全部成功但后续交付失败；记录原 run 的真实失败状态，不把它改成 success。汇总使用原源码提交中的版本、发布政策和说明。下载后的 ZIP 必须通过 GitHub 摘要、原生元数据及 CRC 校验。
 
-- `qa-parser-<target>-candidate.zip`
-- `release-metadata-<target>.json`
+没有完整 OSS receipt 时继续上传并校验；有 receipt 时重新完整下载校验、补齐页面和剩余附件清理。正式 Release 在 OSS 成功前保持草稿。未知附件、来源变化、内容不一致、并发生产任务或公开下载失败均停止清理。
 
-上传前核对commit、目标、轻量版标识、实际ZIP SHA、原生冒烟和源码闭包状态；上传后检查GitHub返回的资产SHA256、大小和状态。相同名称只允许内容完全相同的幂等重试；不同内容不会覆盖已有资产。
+`retire_ids` 可选，必须显式填写获授权的旧 Release ID。新版本完成交付后才退休这些记录；保留旧源码 tag 和 OSS 对象，不自动扩大删除范围。
 
-工作流默认`contents: read`；只有此发布流程的准备、原生产物上传和最终化任务拥有`contents: write`。checkout不持久化凭证，`GH_TOKEN`仅传给Release操作步骤，不写入命令参数或文件。普通构建流程保持只读权限。
+## 本机收尾
 
-## 最终化门槛
+Actions 托管预算受限时使用 `delivery_runner=local`。一次性 runner 仅处理该收尾 job，GitHub Secrets 直接注入 job 环境，不输出、不写入脚本或客户包。macOS ARM64 本机执行：
 
-最终任务只在Windows和两个Mac原生任务均成功后执行。它从本次拥有的草稿下载三组ZIP/JSON，逐项复核服务器和本地SHA，恢复为每个目录的`release-metadata.json`，再调用`prepare_release.py`的共享候选校验。
+```bash
+python3 scripts/run_local_release.py --release-id 438806506 --retire-ids 438667829,438798359,438800027 --evidence outputs/release-v0.3.3/local-recovery
+```
 
-手动模式生成`SHA256SUMS.txt`、`release-manifest.json`和`RELEASE_NOTES.md`，完成后仍是草稿。标签模式调用原有`assemble`生成用户标签对应的版本化ZIP及说明；全部最终资产与候选资产的远端SHA再次一致后，才将同一个草稿改为发布状态。不会调用另建Release的`publish_release.py`。原始候选ZIP和目标元数据保留作输入证据；标签发布另有版本化ZIP，未删除或替换原始资产。
+启动器验证官方 runner SHA，临时注册独有名称、专用 label、ephemeral runner，不安装服务；自动调度统一入口的 resume，结束后注销并删除临时目录。原生包不重建。GitHub self-hosted runner 当前免 Actions 使用费；OSS 流量/存储沿用现有账户规则，不承诺云存储免费。
 
-缺任一目标、错误源码SHA、源闭包不完整、ZIP损坏、未知资产、所有权变化或上传失败，均保留未完成草稿，不发布部分结果。已发布Release不能被此脚本再次修改。完整重跑准备任务会因草稿已存在而失败；应发起新的手动run生成新草稿，或只重跑同一run的失败后续任务。旧草稿保留供人工检查，本流程不自动清理。
+运行前需要本机 GitHub 管理权限、GitHub 网络和现有仓库 OSS Secrets。首次出现预算/网络错误不应删除已有草稿或重打源码 tag。
 
-## 本地检查与证据边界
-
-脚本已通过Python语法检查，并使用不联网的模拟GitHub API验证8个所有权、完整性和最终化场景：拒绝同名Release、拒绝不完整三组资产、拒绝其他run草稿、手动完成仍为draft、标签完成才publish；相同摘要资产重试不覆盖。
-
-这些检查不替代真实GitHub API、三平台原生构建或客户环境验收。每次实际运行以Actions日志、草稿资产及`release-manifest.json`为准。真实9份Word不进入仓库或CI，不据合成检查声明跨平台900/900。Windows x86仍是次级评估，Windows ARM不在范围；没有可选LibreOffice云端完整版承诺。
-
-官方接口依据：[Release创建/修改](https://docs.github.com/en/rest/releases/releases)、[Release资产上传/摘要/下载](https://docs.github.com/en/rest/releases/assets)。下载使用GitHub CLI的认证API路径，以支持私有草稿，不将访问令牌拼入下载URL。
+v0.3.3 原始源码为 `012f57b88a9e5269d8ddb048fdc9ed0a55acd3e3`，生产 run `42574069235`，已有草稿 `438806506`。本次基础设施整合不改变这些身份，也不替代客户环境和目标 APP 验收。

@@ -1,10 +1,29 @@
-name: Native release via owned draft
-run-name: ${{ github.event_name == 'push' && github.ref_name || 'Manual three-platform draft' }}
+name: Build and publish release
+run-name: ${{ github.event_name == 'push' && github.ref_name || format('{0} release {1}', inputs.operation, inputs.release_id) }}
 
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Build new candidates, or resume an existing verified Release
+        type: choice
+        options: [build, resume]
+        default: build
+      release_id:
+        description: Existing Release ID (required for resume; no rebuild)
+        type: string
+        default: ''
+      delivery_runner:
+        description: Hosted, or one-time local runner for delivery only
+        type: choice
+        options: [hosted, local]
+        default: hosted
+      retire_ids:
+        description: Explicit comma-separated old Release IDs to retire after verified delivery
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -20,6 +39,7 @@ env:
 
 jobs:
   prepare:
+    if: inputs.operation != 'resume'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -97,21 +117,43 @@ jobs:
           TARGET: macos-${{ matrix.architecture }}
         run: python scripts/release_draft.py upload --release-id "$RELEASE_ID" --target "$TARGET" --archive "dist/qa-parser-$TARGET-candidate.zip"
 
-  finalize:
+  deliver:
     needs: [prepare, windows, macos]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    if: ${{ always() && !cancelled() && (inputs.operation == 'resume' || (needs.prepare.result == 'success' && needs.windows.result == 'success' && needs.macos.result == 'success')) }}
+    runs-on: ${{ inputs.delivery_runner == 'local' && fromJSON('["qa-parser-release-local"]') || fromJSON('["ubuntu-24.04"]') }}
+    timeout-minutes: 120
     permissions:
       contents: write
+      actions: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        if: inputs.delivery_runner != 'local'
         with:
           python-version: '3.13.3'
-      - name: Verify complete native set, assemble and finalize owned draft
+      - name: Install isolated upload dependencies (no secrets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/release-venv"
+          "$RUNNER_TEMP/release-venv/bin/python" -m pip install --require-hashes -r requirements-macos-bootstrap.lock
+          "$RUNNER_TEMP/release-venv/bin/python" -m pip install --no-build-isolation --require-hashes -r requirements-oss.lock
+      - name: Verify native jobs, resume delivery, verify public downloads and clean mirrored assets
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
-        run: python scripts/release_draft.py finalize --release-id "$RELEASE_ID"
+          RELEASE_ID: ${{ inputs.operation == 'resume' && inputs.release_id || needs.prepare.outputs.release_id }}
+          RETIRE_IDS: ${{ inputs.retire_ids }}
+          ALIYUN_OSS_ACCESS_KEY_ID: ${{ secrets.ALIYUN_OSS_ACCESS_KEY_ID }}
+          ALIYUN_OSS_ACCESS_KEY_SECRET: ${{ secrets.ALIYUN_OSS_ACCESS_KEY_SECRET }}
+          ALIYUN_OSS_BUCKET: ${{ secrets.ALIYUN_OSS_BUCKET }}
+          ALIYUN_OSS_REGION: ${{ secrets.ALIYUN_OSS_REGION }}
+          ALIYUN_OSS_ENDPOINT: ${{ secrets.ALIYUN_OSS_ENDPOINT }}
+          ALIYUN_OSS_PUBLIC_BASE_URL: ${{ secrets.ALIYUN_OSS_PUBLIC_BASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="${QA_RELEASE_EVIDENCE_DIR:-$RUNNER_TEMP/release-evidence}"
+          "$RUNNER_TEMP/release-venv/bin/python" scripts/publish_pipeline.py --release-id "$RELEASE_ID" --retire-ids "$RETIRE_IDS" --work "$RUNNER_TEMP/release-work" --evidence "$evidence"

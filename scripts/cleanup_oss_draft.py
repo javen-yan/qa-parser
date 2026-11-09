@@ -37,7 +37,7 @@ def asset_identity(item):
     return {k: item.get(k) for k in ('id', 'name', 'state', 'size', 'digest')}
 
 
-def cleanup(repo, release_id, receipt, *, apply=False):
+def cleanup(repo, release_id, receipt, *, apply=False, verify_native_jobs=False):
     if repo != 'javen-yan/qa-parser' or not re.fullmatch(r'[1-9][0-9]*', str(release_id)):
         raise ValueError('Cleanup is limited to this project and numeric release IDs')
     if receipt.get('repository') != repo or str(receipt.get('release_id')) != str(release_id):
@@ -56,6 +56,11 @@ def cleanup(repo, release_id, receipt, *, apply=False):
     if not formal and not release['draft'] and (not release.get('prerelease') or marker not in release.get('body', '')):
         raise ValueError('Never modify an unrelated published Release')
     def check_run():
+        if verify_native_jobs:
+            import os
+            from verify_native_producer import verify
+            verify(repo, owner, active_run=os.environ.get('GITHUB_RUN_ID'), read=read_api)
+            return
         run = read_api(f"repos/{repo}/actions/runs/{owner['run_id']}")
         if run.get('status') != 'completed' or run.get('head_sha') != owner['commit'] or run.get('path') != '.github/workflows/release.yml' or (formal and run.get('conclusion') != 'success'):
             raise ValueError('Producer workflow is running or source identity differs')

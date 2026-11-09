@@ -27,7 +27,7 @@ Mac使用 [macOS native portable candidates 工作流](https://github.com/javen-
 
 仓库的 [Windows portable candidate 工作流](https://github.com/javen-yan/qa-parser/actions/workflows/windows-portable.yml) 仅手动触发。在 Actions 中选择该工作流 → Run workflow。只有构建、合成回归、解压后冻结程序及原生窗口冒烟均通过，才上传 `qa-parser-windows-x64-candidate` artifact；证据另存 `windows-build-evidence`，保留14天。
 
-当Actions artifact配额不足时，可手动运行 [Native release via owned draft](https://github.com/javen-yan/qa-parser/actions/workflows/release.yml)，直接向同一未发布草稿上传三平台验证包，完成后附校验值与说明。只有用户版本tag触发且全部门槛通过才发布；手动运行保留草稿，不创造正式版本号。详见[草稿及版本发布流程](docs/release-pipeline.md)。
+发布统一使用 [Build and publish release](https://github.com/javen-yan/qa-parser/actions/workflows/release.yml)：构建、三平台验证、OSS 上传、公网校验、Release 更新和镜像附件清理一次完成。失败后选择 `resume` 并填写已有 Release ID，复用验证包；预算受限可用一次性本机 runner 收尾，沿用 GitHub Secrets。旧版本仅按明确指定 ID 清理。详见[统一发布流程](docs/release-pipeline.md)。
 
 下载artifact，先解开GitHub外层归档，再完整解压其中的 `qa-parser-windows-x64-candidate.zip`，进入“题库转换”文件夹双击EXE。保留 `_internal` 及其子目录。固定版WebView2、WMF转换器、离线字体和Python运行环境均随包分发；不在首次启动时下载。任务及浏览器缓存写入用户LOCALAPPDATA，不写程序目录。
 
