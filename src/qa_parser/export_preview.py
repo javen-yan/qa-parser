@@ -34,7 +34,7 @@ def _xml(archive, name):
     return ET.fromstring(data)
 
 
-def _workbook_rows(path):
+def _workbook_rows(path, sheet_index=1):
     """Read literal XLSX cell strings, not a second interpretation of DOCX."""
     if path.is_symlink() or not path.is_file():
         raise ValueError('Preview workbook must be a regular file')
@@ -43,7 +43,9 @@ def _workbook_rows(path):
         if 'xl/sharedStrings.xml' in archive.namelist():
             strings = [''.join(t.text or '' for t in si.findall('.//s:t', NS))
                        for si in _xml(archive, 'xl/sharedStrings.xml')]
-        root = _xml(archive, 'xl/worksheets/sheet1.xml')
+        if not isinstance(sheet_index, int) or not 1 <= sheet_index <= 16:
+            raise ValueError('Invalid worksheet index')
+        root = _xml(archive, f'xl/worksheets/sheet{sheet_index}.xml')
     if root.findall('.//s:f', NS):
         raise ValueError('Unexpected executable formula in exported workbook')
     result = []
@@ -119,12 +121,19 @@ def build_export_preview(export_dir: Path, source_name: str = '', *,
     manifest = json.loads((root / 'report.json').read_text(encoding='utf-8'))
     if manifest.get('schema_version') != 1:
         raise ValueError('Unsupported export manifest schema')
-    rows = _workbook_rows(root / 'questions.xlsx')
-    columns = rows[0][1]
-    if not columns or len(columns) != len(set(columns)):
-        raise ValueError('Preview column names are empty or duplicated')
+    sheets = manifest.get('sheets') or [{'name': '', 'index': 1}]
     mappings = manifest.get('rows', [])
-    if len(rows) - 1 != len(mappings) or len(mappings) != manifest.get('exported_questions'):
+    records = []
+    for sheet in sheets:
+        rows = _workbook_rows(root / 'questions.xlsx', sheet['index'])
+        columns = rows[0][1]
+        if not columns or len(columns) != len(set(columns)):
+            raise ValueError('Preview column names are empty or duplicated')
+        sheet_mappings = [m for m in mappings if m.get('sheet', '') == sheet['name']]
+        if len(rows) - 1 != len(sheet_mappings):
+            raise ValueError('Workbook rows and source-number mapping differ')
+        records.extend((row, mapping, columns) for row, mapping in zip(rows[1:], sheet_mappings))
+    if len(records) != len(mappings) or len(mappings) != manifest.get('exported_questions'):
         raise ValueError('Workbook rows and source-number mapping differ')
     if not isinstance(formula_delimiter, str) or not 1 <= len(formula_delimiter) <= 16:
         raise ValueError('Invalid formula delimiter for display')
@@ -169,7 +178,7 @@ def build_export_preview(export_dir: Path, source_name: str = '', *,
         return result or [{'type': 'text', 'text': '（空）'}]
 
     questions = []
-    for (excel_row, cells), mapping in zip(rows[1:], mappings):
+    for (excel_row, cells), mapping, columns in records:
         if mapping.get('excel_row') != excel_row or len(cells) != len(columns):
             raise ValueError('Workbook row differs from source mapping/template width')
         values = dict(zip(columns, cells))
@@ -179,7 +188,7 @@ def build_export_preview(export_dir: Path, source_name: str = '', *,
         primary += ['答案', '解析', '考点']
         fields = [{'key': key, 'label': '选项 ' + key[6:] if key.startswith('option') else key,
                    'segments': segments(values[key])} for key in primary if key in values]
-        questions.append({'number': str(mapping.get('number', '?')), 'excel_row': excel_row,
+        questions.append({'number': str(mapping.get('number', '?')), 'excel_row': excel_row, 'sheet': mapping.get('sheet', ''),
                           'fields': fields, 'difficulty': values.get('困难程度', ''),
                           'cells': list(zip(columns, cells))})
     return {'schema_version': 1, 'source_name': source_name or manifest.get('source', {}).get('name', ''),
@@ -216,7 +225,7 @@ def render_export_preview(export_dir: Path, source_name: str = '', **options) ->
     chunks.extend(['</header><div class="layout"><nav aria-label="跳转到源题号">',
                    ''.join('<a href="#q-' + str(index) + '">' + esc(q['number']) + '</a>' for index, q in enumerate(preview['questions'])), '</nav><div>'])
     for index, question in enumerate(preview['questions']):
-        chunks.append('<article id="q-' + str(index) + '"><div class="question-head"><h2>源第 ' + esc(question['number']) + ' 题</h2><small>Excel 第 ' + str(question['excel_row']) + ' 行' + (' · 难度 ' + esc(question['difficulty']) if question['difficulty'] else '') + '</small></div>')
+        chunks.append('<article id="q-' + str(index) + '"><div class="question-head"><h2>源第 ' + esc(question['number']) + ' 题</h2><small>Excel 第 ' + str(question['excel_row']) + ' 行 · ' + esc(question.get('sheet', '')) + (' · 难度 ' + esc(question['difficulty']) if question['difficulty'] else '') + '</small></div>')
         for field in question['fields']:
             chunks.append('<section><h3>' + esc(field['label']) + '</h3><div class="content">')
             for segment in field['segments']:

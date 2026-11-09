@@ -75,8 +75,9 @@ def test_blank_keeps_multi_question_and_answers_in_one_row(tmp_path):
     q = report["questions"][0]
     assert report["total"] == report["passed"] == 1
     assert q["stem"] == "公共题干\n(1)第一空____\n(2)第二空____"
-    assert q["answer"] == "(1)铁\n(2)铜"
-    assert q["knowledge_point"] == ""
+    assert q["answer"] == "铁,铜"
+    assert q["original_answer"] == "(1)铁\n(2)铜"
+    assert q["knowledge_point"] == "公共题干\n(1)第一空铁\n(2)第二空铜"
 
 
 def test_table_options_and_converted_formula_keep_ownership(tmp_path):

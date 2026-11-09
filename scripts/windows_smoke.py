@@ -134,9 +134,9 @@ def check_run(folder: Path, kind: str, original_png: bytes):
         require((folder / 'export/images/001.png').read_bytes() == original_png, 'Original PNG bytes changed')
         require(summary['exported_formulas']['converted'] == 1, 'Expected one real OMML conversion')
     else:
-        require(row['考点'] == '', 'Default knowledge point must remain blank')
+        require(row['考点'] == '公共题干：按顺序填写。\n(1)第一空铁\n(2)第二空铜', 'Knowledge statement must fill each evidenced slot')
         require('(1)第一空____' in row['题目'] and '(2)第二空____' in row['题目'], 'Subquestions lost')
-        require(row['答案'] == '(1)铁\n(2)铜', 'Subquestion answers lost or reordered')
+        require(row['答案'] == '铁,铜', 'Subquestion answers lost or reordered')
     html = (folder / 'export/题目预览.html').read_text(encoding='utf-8')
     require('katex' in html and (folder / '_display/NotoSansCJKsc-Regular.otf').is_file(), 'Offline math/font assets missing')
     task = json.loads((folder / 'task/task.json').read_text(encoding='utf-8'))

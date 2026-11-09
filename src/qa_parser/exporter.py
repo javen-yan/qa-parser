@@ -121,26 +121,28 @@ def export_task(task: dict, task_dir: Path, out_dir: Path, allow_partial: bool =
     task_dir, out_dir = Path(task_dir), Path(out_dir)
     if out_dir.exists() or out_dir.is_symlink():
         raise ExportError(f"Output already exists: {out_dir}")
-    if task.get("schema_version") != 1:
+    if task.get("schema_version") not in (1, 2):
         raise ExportError("Unsupported task schema_version")
     kind = task.get("kind")
-    if kind not in ("choice", "blank"):
+    if kind not in ("choice", "blank", "mixed"):
         raise ExportError(f"Unsupported question kind: {kind}")
     config = task.get("config", {})
-    columns = config.get(f"{kind}_columns", CHOICE_COLUMNS if kind == "choice" else BLANK_COLUMNS)
-    if not isinstance(columns, list) or not columns or not all(isinstance(c, str) and c for c in columns):
-        raise ExportError("Columns must be a nonempty array of names")
-    if len(columns) != len(set(columns)) or len(columns) > 16384:
-        raise ExportError("Duplicate columns or Excel column limit exceeded")
+    kinds = ["choice", "blank"] if kind == "mixed" else [kind]
+    columns_by_kind = {k: config.get(f"{k}_columns", CHOICE_COLUMNS if k == "choice" else BLANK_COLUMNS) for k in kinds}
     required = config.get("required_columns", [])
     if not isinstance(required, list) or not all(isinstance(c, str) for c in required):
         raise ExportError("required_columns must be an array of column names")
-    if set(required) - set(columns):
-        raise ExportError("required_columns contains columns absent from the export template")
-    for column in columns:
-        _check_cell(column, "header")
+    for columns in columns_by_kind.values():
+        if not isinstance(columns, list) or not columns or not all(isinstance(c, str) and c for c in columns):
+            raise ExportError("Columns must be a nonempty array of names")
+        if len(columns) != len(set(columns)) or len(columns) > 16384:
+            raise ExportError("Duplicate columns or Excel column limit exceeded")
+        if set(required) - set(columns):
+            raise ExportError("required_columns contains columns absent from the export template")
+        for column in columns:
+            _check_cell(column, "header")
     questions = task.get("questions", [])
-    omitted = [{"id": q.get("id"), "number": q.get("number"), "issues": q["issues"]}
+    omitted = [{"id": q.get("id"), "number": q.get("number"), "parent_id": q.get("parent_id"), "number_path": q.get("number_path", [q.get("number")]), "issues": q["issues"], "policy_skipped": any(i.get("policy_skip") for i in q["issues"])}
                for q in questions if q.get("issues")]
     if omitted and not allow_partial:
         raise ExportError(f"{len(omitted)} questions require review; explicitly enable partial export to omit them")
@@ -149,7 +151,23 @@ def export_task(task: dict, task_dir: Path, out_dir: Path, allow_partial: bool =
         raise ExportError("No passed questions to export")
     if len(included) > 1048575:
         raise ExportError("Excel row limit exceeded")
-    rows = [_row(q, kind, config, columns) for q in included]
+    row_kinds = [q.get("kind", kind) for q in included]
+    if any(k not in columns_by_kind for k in row_kinds):
+        raise ExportError("Question kind does not match available export templates")
+    rows = [_row(q, k, config, columns_by_kind[k]) for q, k in zip(included, row_kinds)]
+    sheets, mappings = [], []
+    for k in kinds:
+        selected = [q for q, row_kind in zip(included, row_kinds) if row_kind == k]
+        if not selected:
+            continue
+        sheet_name = "选择" if k == "choice" else "考点"
+        sheets.append({"name": sheet_name, "kind": k, "index": len(sheets) + 1,
+                       "rows": len(selected), "columns": columns_by_kind[k]})
+        for i, q in enumerate(selected, 2):
+            mappings.append({"excel_row": i, "sheet": sheet_name, "kind": k, "id": q.get("id"),
+                             "number": q.get("number"), "parent_id": q.get("parent_id"),
+                             "number_path": q.get("number_path", [q.get("number")]),
+                             "source_spans": q.get("source_spans", []), "material_refs": q.get("material_refs", [])})
     assets = {}
     for asset in task.get("assets", []):
         name = asset.get("filename")
@@ -180,8 +198,9 @@ def export_task(task: dict, task_dir: Path, out_dir: Path, allow_partial: bool =
         "total_questions": len(questions),
         "exported_questions": len(included),
         "omitted_questions": omitted,
-        "rows": [{"excel_row": i + 2, "id": q.get("id"), "number": q.get("number")}
-                 for i, q in enumerate(included)],
+        "rows": mappings,
+        "sheets": sheets,
+        "structure": task.get("structure", {}),
         "images": [{key: a[key] for key in ("filename", "sha256", "origin", "formula_id", "source_preview_sha256", "engine", "width", "height") if key in a} for a, _ in resources],
         "formula_outcomes": [{key: f[key] for key in ("id", "format", "status", "location", "reason", "fallback_asset_id", "fallback_engine", "output_policy", "raster_evidence") if key in f}
                              for f in task.get("formulas", []) if any(f["id"] in q.get("formula_ids", []) for q in included)],
@@ -201,19 +220,22 @@ def export_task(task: dict, task_dir: Path, out_dir: Path, allow_partial: bool =
             "strings_to_formulas": False, "strings_to_urls": False,
             "constant_memory": True,
         }) as workbook:
-            worksheet = workbook.add_worksheet("选择" if kind == "choice" else "考点")
             header = workbook.add_format({"bold": True, "bg_color": "#E8EDF2", "border": 1})
             text = workbook.add_format({"text_wrap": True, "valign": "top", "num_format": "@"})
-            worksheet.freeze_panes(1, 0)
-            worksheet.set_column(0, len(columns) - 1, 20)
-            for i, column in enumerate(columns):
-                if column in ("题目", "选择项", "解析", "title"):
-                    worksheet.set_column(i, i, 60)
-            for row_index, row in enumerate([columns, *rows]):
-                for col_index, value in enumerate(row):
-                    result = worksheet.write_string(row_index, col_index, value, header if row_index == 0 else text)
-                    if result:
-                        raise ExportError(f"XLSX writer rejected cell {row_index + 1}:{col_index + 1} ({result})")
+            for sheet in sheets:
+                worksheet = workbook.add_worksheet(sheet["name"])
+                columns = sheet["columns"]
+                selected_rows = [row for row, k in zip(rows, row_kinds) if k == sheet["kind"]]
+                worksheet.freeze_panes(1, 0)
+                worksheet.set_column(0, len(columns) - 1, 20)
+                for i, column in enumerate(columns):
+                    if column in ("题目", "选择项", "解析", "title"):
+                        worksheet.set_column(i, i, 60)
+                for row_index, row in enumerate([columns, *selected_rows]):
+                    for col_index, value in enumerate(row):
+                        result = worksheet.write_string(row_index, col_index, value, header if row_index == 0 else text)
+                        if result:
+                            raise ExportError(f"XLSX writer rejected cell {row_index + 1}:{col_index + 1} ({result})")
         (temporary / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         # Avoid replacing existing results, including a target created during work.
         # Reserve the destination before moving completed files. A failed publish

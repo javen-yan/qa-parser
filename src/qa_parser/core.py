@@ -258,8 +258,8 @@ def _render_questions(questions: list[dict], formulas: list[dict], assets: list[
                     return config["image_reference"].format(filename=amap[ref]["filename"])
                 return f"【引用待复核 {ref}】"
             return REF.sub(sub, text)
-        for key in ("stem", "answer", "analysis"):
-            q[key] = render(q[key])
+        for key in ("stem", "answer", "analysis", "knowledge_point"):
+            q[key] = render(q.get(key, ""))
         q["options"] = {key: render(value) for key, value in q["options"].items()}
         # Use formula/image CONTENT, not occurrence IDs, to keep difficulty stable.
         def canonical_ref(match):
@@ -274,9 +274,9 @@ def _render_questions(questions: list[dict], formulas: list[dict], assets: list[
 
 
 def validate_task(task: dict, task_dir: Path, source: Path | None = None) -> dict:
-    if task.get("schema_version") != 1:
+    if task.get("schema_version") not in (1, 2):
         raise ValueError("Unsupported task schema_version")
-    if task.get("kind") not in ("choice", "blank"):
+    if task.get("kind") not in ("choice", "blank", "mixed", "unknown"):
         raise ValueError("Unsupported question kind")
     config = task["config"]
     validate_config(config)
@@ -309,11 +309,14 @@ def validate_task(task: dict, task_dir: Path, source: Path | None = None) -> dic
     validated = []
     for original in task["questions"]:
         q = deepcopy(original)
-        for field in config["required_fields"][task["kind"]]:
+        kind = q.get("kind", task["kind"])
+        if kind not in ("choice", "blank") and not q["issues"]:
+            q["issues"].append(issue("unsupported_kind", "Question type requires review", q["location"]))
+        for field in config["required_fields"].get(kind, []):
             if not q.get(field):
                 q["issues"].append(issue("required_field", f"Required field is empty: {field}", q["location"]))
-        if task["kind"] == "choice":
-            for label in "ABCD":
+        if kind == "choice":
+            for label in q.get("option_labels", "ABCD"):
                 if not q["options"].get(label, "").strip():
                     q["issues"].append(issue("empty_option", f"Missing or empty option {label}", q["location"]))
         for fid in q["formula_ids"]:
@@ -352,7 +355,7 @@ def validate_task(task: dict, task_dir: Path, source: Path | None = None) -> dic
             elif f["source"]["path"] in broken:
                 q["issues"].append(issue("formula_evidence", "Formula evidence changed or missing", f["location"], formula_id=fid))
         from .image_references import referenced_names
-        referenced = referenced_names('\n'.join([q['stem'], q['answer'], q['analysis'], *q['options'].values()]), config['image_reference'])
+        referenced = referenced_names('\n'.join([q['stem'], q['answer'], q['analysis'], q.get('knowledge_point', ''), *q['options'].values()]), config['image_reference'])
         for filename in sorted(set(q["asset_filenames"]) | referenced):
             a = amap.get(filename)
             if not a or a["path"] in broken:
@@ -366,13 +369,13 @@ def validate_task(task: dict, task_dir: Path, source: Path | None = None) -> dic
             # unattended run discard other sound questions.
             from .exporter import validate_export_question
             try:
-                validate_export_question(q, task["kind"], config)
+                validate_export_question(q, kind, config)
             except ValueError as exc:
                 q["issues"].append(issue("export_content", str(exc), q["location"]))
         q["status"] = "review" if q["issues"] else "passed"
         validated.append(q)
     passed = sum(q["status"] == "passed" for q in validated)
-    return {"schema_version": 1, "source": task["source"]["name"], "kind": task["kind"], "contract_status": "unverified", "total": len(validated), "passed": passed, "review": len(validated)-passed, "document_issues": global_issues, "questions": validated, "formulas": formula_counts(task["formulas"]),
+    return {"schema_version": 1, "source": task["source"]["name"], "kind": task["kind"], "contract_status": "unverified", "total": len(validated), "passed": passed, "review": len(validated)-passed, "counts": question_counts(validated, task.get("structure", {})), "document_issues": global_issues, "questions": validated, "formulas": formula_counts(task["formulas"]),
             "passed_with_formula_images": sum(q["status"] == "passed" and any(fmap[fid]["status"] == "image" for fid in q["formula_ids"]) for q in validated)}
 
 
@@ -384,14 +387,26 @@ def formula_counts(formulas: list[dict]) -> dict:
 
 def _metadata_digest(task: dict) -> str:
     fields = {k: task[k] for k in ("kind", "source", "blocks", "formulas", "assets", "document_issues")}
+    if task.get("schema_version") == 2:
+        fields["structure"] = task["structure"]
     return digest(json.dumps(fields, sort_keys=True, ensure_ascii=False).encode())
+
+
+def question_counts(questions: list[dict], structure: dict) -> dict:
+    """Keep source groups, output units and policy omissions distinct."""
+    skipped = sum(any(i.get("policy_skip") for i in q.get("issues", [])) for q in questions)
+    failed = sum(bool(q.get("issues")) and not any(i.get("policy_skip") for i in q["issues"]) for q in questions)
+    return {"original_questions": structure.get("original_question_count", len(questions)),
+            "subquestions": structure.get("subquestion_count", 0), "output_units": len(questions),
+            "exported": sum(not q.get("issues") for q in questions), "policy_skipped": skipped,
+            "failed_or_review": failed}
 
 
 def parse_document(source: Path, kind: str, out_dir: Path, config: dict | None = None) -> dict:
     from .document import read_document
 
-    if kind not in ("choice", "blank"):
-        raise ValueError("kind must be choice or blank")
+    if kind not in ("choice", "blank", "auto"):
+        raise ValueError("kind must be choice, blank or auto")
     if source.suffix.lower() != ".docx":
         raise ValueError("Only .docx input is supported")
     if out_dir.exists():
@@ -407,7 +422,18 @@ def parse_document(source: Path, kind: str, out_dir: Path, config: dict | None =
         snapshot = _save_bytes(staging, "source/input.docx", data)
         document = read_document(staging / snapshot["path"])
         blocks, formulas, assets = _prepare_blocks(document, staging, config)
-        questions, preamble = _questions(blocks, kind, config)
+        from .question_structure import build_questions
+        from .table_policy import apply_table_policy
+        from .blank_answers import enrich_blank_question
+        questions, preamble, structure = build_questions(blocks, kind, config)
+        for question in questions:
+            apply_table_policy(question, blocks, config)
+            if question.get("kind") == "blank" and not any(i.get("policy_skip") for i in question["issues"]):
+                enrich_blank_question(question, blocks, config, formulas=formulas)
+            if kind != "auto" and question.get("kind") in ("choice", "blank") and question["kind"] != kind:
+                question["issues"].append(issue("kind_mismatch", "Selected kind conflicts with question structure", question["location"]))
+        found_kinds = {q.get("kind") for q in questions} & {"choice", "blank"}
+        actual_kind = next(iter(found_kinds)) if len(found_kinds) == 1 else "mixed" if found_kinds else "unknown"
         from .mixed_formulas import apply_mixed_formulas
         apply_mixed_formulas(questions, formulas, assets, blocks, staging, config)
         _render_questions(questions, formulas, assets, config)
@@ -415,20 +441,17 @@ def parse_document(source: Path, kind: str, out_dir: Path, config: dict | None =
         for value in document.get("issues", []):
             problem = issue(value.get("code", "document"), value.get("message", value.get("reason", str(value))), value.get("location", ""))
             # Local unsupported content must not block explicitly requested partial exports.
-            owner = next((q for q in questions if any(problem["location"].startswith(b["location"] + "/") or problem["location"] == b["location"] for b in blocks if b["index"] in q["block_indices"])), None) if problem["location"] else None
-            if owner is not None:
-                if problem not in owner["issues"]:
-                    owner["issues"].append(problem)
+            owners = [q for q in questions if any(problem["location"].startswith(b["location"] + "/") or problem["location"] == b["location"] for b in blocks if b["index"] in q["block_indices"])] if problem["location"] else []
+            if owners:
+                for owner in owners:
+                    if problem not in owner["issues"]:
+                        owner["issues"].append(problem)
             else:
                 document_issues.append(problem)
         if not questions:
             document_issues.append(issue("no_questions", "No numbered questions detected"))
         heading = "\n".join(b["text"] for b in preamble)
-        if (kind == "choice" and "填空题" in heading) or (kind == "blank" and "单选题" in heading):
-            document_issues.append(issue("kind_mismatch", "Selected kind conflicts with source heading"))
-        if "多选题" in heading:
-            document_issues.append(issue("unsupported_kind", "Multiple-choice documents require review"))
-        task = {"schema_version": 1, "parser_version": "0.2.0", "kind": kind, "source": {"name": source.name, "original_path": str(source.resolve()), "sha256": digest(data), "snapshot": snapshot}, "config": config, "config_sha256": config_digest(config), "blocks": blocks, "preamble_block_indices": [b["index"] for b in preamble], "questions": questions, "formulas": formulas, "assets": assets, "document_issues": document_issues}
+        task = {"schema_version": 2, "parser_version": "composite-1", "kind": actual_kind, "structure": structure, "source": {"name": source.name, "original_path": str(source.resolve()), "sha256": digest(data), "snapshot": snapshot}, "config": config, "config_sha256": config_digest(config), "blocks": blocks, "preamble_block_indices": [b["index"] for b in preamble], "questions": questions, "formulas": formulas, "assets": assets, "document_issues": document_issues}
         task["questions_sha256"] = digest(json.dumps(questions, sort_keys=True, ensure_ascii=False).encode())
         task["metadata_sha256"] = _metadata_digest(task)
         write_json(staging / "task.json", task)
@@ -512,6 +535,7 @@ def run_document(source: Path, kind: str, out_dir: Path, config: dict | None = N
             exported_formulas = [f for f in task["formulas"] if f["id"] in exported_formula_ids]
             summary = {"schema_version": 1, "status": status, "source": source.name,
                        "total": report["total"], "passed": len(included), "quarantined": len(quarantined),
+                       "counts": {**report["counts"], "exported": len(included)},
                        "formulas": report["formulas"], "exported_formulas": formula_counts(exported_formulas),
                        "questions_with_formula_images": sum(any(f["status"] == "image" and f["id"] in q["formula_ids"] for f in exported_formulas) for q in included),
                        "document_issues": report["document_issues"],

@@ -60,6 +60,8 @@ def _aggregate(snapshot: dict) -> None:
     snapshot["quarantined"] = sum(row["quarantined"] or 0 for row in rows)
     snapshot["counts"] = {status: sum(row["status"] == status for row in rows)
                           for status in ("success", "partial_failure", "failure")}
+    snapshot["question_counts"] = {key: sum(row.get("counts", {}).get(key, 0) for row in rows)
+                                   for key in ("original_questions", "subquestions", "output_units", "exported", "policy_skipped", "failed_or_review")}
     if len(finished) != len(rows):
         snapshot["status"] = "running"
         snapshot["message"] = f"正在处理：{len(finished)}/{len(rows)} 份 Word 已完成。"
@@ -152,17 +154,18 @@ def run_batch(inputs: list[Path], mode: str, out: Path, progress=None, *,
             classification = classify_document(source_copy)
             row["classification_status"] = classification["status"]
             row["total"] = classification["total"]
-            if classification["status"] != "classified":
+            if classification["status"] == "failed" or not classification["total"]:
                 _failure(folder, row, classification["reason"], classification)
                 continue
             detected = classification["kind"]
-            row["kind"] = detected
-            if mode != "auto" and mode != detected:
+            row["kind"] = detected or ("mixed" if classification["status"] == "mixed" else "unknown")
+            if mode != "auto" and classification["status"] == "classified" and mode != detected:
                 _failure(folder, row, "所选题型与文档内容不一致，未进行转换。", classification)
                 continue
             row.update(message="正在转换并检查题目")
             publish()
-            summary = run_document(source_copy, detected, folder)
+            summary = run_document(source_copy, mode, folder)
+            row["counts"] = summary.get("counts", {})
             _write_json(folder / "classification.json", classification)
             user = summary["user_result"]
             if summary.get("export_preview"):

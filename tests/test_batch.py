@@ -70,13 +70,18 @@ def test_partial_file_is_not_success(tmp_path):
     assert '不完整' in row['message']
 
 
-def test_mixed_and_unknown_documents_block_in_every_mode(tmp_path):
+def test_mixed_exports_supported_rows_and_unknown_remains_reported(tmp_path):
     mixed = docx(tmp_path / 'mixed.docx', choice() + ['2．填空____', '【答案】铁'])
     unknown = docx(tmp_path / 'unknown.docx', ['1．解释这个现象。', '【答案】答案'])
     for mode in ['auto', 'choice', 'blank']:
         result = run_batch([mixed, unknown], mode, tmp_path / mode)
-        assert result['status'] == 'failure'
-        assert all(f['export'] is None for f in result['files'])
+        assert result['status'] == 'partial_failure'
+        assert result['files'][0]['passed'] == (2 if mode == 'auto' else 1)
+        assert result['files'][0]['export']
+        assert result['files'][1]['export'] is None
+        report = json.loads((Path(result['files'][0]['output']) / 'export/report.json').read_text())
+        assert len(report['sheets']) == (2 if mode == 'auto' else 1)
+        assert report['import_contract'] == 'unverified'
 
 
 def test_callback_error_does_not_fail_conversion(tmp_path):

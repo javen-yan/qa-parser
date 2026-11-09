@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 
-def write_metadata(archive, smoke, target, output, source_complete, startup=None):
+def write_metadata(archive, smoke, target, output, source_complete, startup=None, composite=None):
     report = json.loads(smoke.read_text(encoding='utf-8'))
     if report.get('status') != 'passed' or report.get('gui', {}).get('status') != 'passed':
         raise ValueError('Native CLI and GUI smoke must pass before candidate metadata')
@@ -26,6 +26,15 @@ def write_metadata(archive, smoke, target, output, source_complete, startup=None
             or diagnostic.get('automatic_recovery', {}).get('status') != 'recovered_verified_internet_mark'):
             raise ValueError('Windows startup reproduction and automatic recovery must pass')
         data['startup_validation'] = diagnostic
+    if composite is not None:
+        business = json.loads(composite.read_text(encoding='utf-8'))
+        runs = business.get('runs', {})
+        if (business.get('status') != 'passed' or set(runs) != {'development', 'frozen'}
+            or any(r.get('status') != 'passed' for r in runs.values())
+            or not runs['development'].get('semantic_sha256')
+            or runs['development']['semantic_sha256'] != runs['frozen'].get('semantic_sha256')):
+            raise ValueError('Composite source and frozen semantics must both pass and match')
+        data['composite_validation'] = business
     output.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
@@ -37,10 +46,11 @@ if __name__ == '__main__':
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--runtime-lock', type=Path, required=True)
     p.add_argument('--startup', type=Path)
+    p.add_argument('--composite', type=Path)
     a = p.parse_args()
     lock = json.loads(a.runtime_lock.read_text(encoding='utf-8'))
     if a.target == 'windows-x64':
         complete = not lock['wmf']['missing_sources']
     else:
         complete = lock.get('source_closure_complete') is True
-    write_metadata(a.archive, a.smoke, a.target, a.output, complete, a.startup)
+    write_metadata(a.archive, a.smoke, a.target, a.output, complete, a.startup, a.composite)

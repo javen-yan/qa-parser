@@ -87,6 +87,13 @@ def _description(issue: dict, formula: dict | None) -> tuple[str, str, str, str]
             details.insert(0, '源对象中的行列内容仍然存在，但其对齐参数超出当前已确认的规则；直接按默认居中处理可能改变条件的位置。')
         return category, title, ''.join(details), '此处公式不能完整保留，可能影响题意、选项或解答，因此整题未导出。'
     descriptions = {
+        'table_interaction_skipped': ('structure', '按策略跳过表格交互填空', '这道题要求在表格单元格中填写内容；当前策略保留源表格和位置证据，不生成可能错位的答案。', '仅此题未导出，其他无依赖题目继续处理。'),
+        'table_role_unknown': ('structure', '表格用途需要复核', '无法可靠区分此表格是材料还是作答区域。', '未猜测或丢弃表格，保留整题供复核。'),
+        'blank_answer_alignment': ('structure', '空位与答案无法一一对应', '文字空位、小问编号与答案字段不能完整对应，或含有无文字空位的图片/开放作答。', '未生成猜测的考点或答案序列，整题未导出。'),
+        'group_answer_binding': ('structure', '子题答案归属不明确', '集中答案中的题号缺失、重复或与子题不匹配。', '不能将答案猜配给子题，受影响子题未导出。'),
+        'group_analysis_binding': ('structure', '子题解析归属不明确', '集中解析缺少可验证的子题编号。', '受影响子题保留源内容供复核。'),
+        'unknown_kind': ('structure', '作答方式不明确', '正文证据不足以可靠识别选择或填空结构。', '此题未导出，不影响其他明确题型。'),
+        'unsupported_kind': ('structure', '暂未支持的作答方式', '此题属于简答、绘图等当前未支持的作答方式，未强制转换为填空题。', '保留原题与答案供复核，其他题继续处理。'),
         'formula_image_binding': ('resource', '公式与预览图无法确认对应', '公式对象与图片之间的对应证据缺失或不一致，不能确认这张图属于此处公式。', '为避免把别处公式放进本题，整题未导出。'),
         'formula_evidence': ('resource', '公式原始资源缺失或变化', '保存的公式证据无法读取，或内容与解析时记录不一致。', '当前无法验证公式内容，整题未导出。'),
         'image_missing': ('resource', '图片资源缺失或变化', '此处引用的图片无法读取，或与解析时保存的内容不一致。', '无法完整呈现题目图片，整题未导出。'),
@@ -181,7 +188,7 @@ def build_problem_preview(task_dir: Path, source_name: str = '') -> dict:
             'source': '', 'source_label': '源位置不可用', 'diagnostic': f'{type(exc).__name__}: {exc}'}]
         return result
     result.update(source_name=source_name or task['source']['name'], kind=task['kind'],
-                  kind_label='选择题' if task['kind'] == 'choice' else '填空 / 考点')
+                  kind_label={'choice': '选择题', 'blank': '填空 / 考点', 'mixed': '混合题型'}.get(task['kind'], '待复核题型'))
     formulas = {f['id']: f for f in task['formulas']}
     assets = {a['id']: a for a in task['assets']}
     images = _Images(root)
@@ -197,14 +204,15 @@ def build_problem_preview(task_dir: Path, source_name: str = '') -> dict:
         issues = deepcopy(original.get('issues', [])) + deepcopy(global_issues)
         if not issues:
             continue
-        raw_fields, _ = _split_fields(original['raw_text'], task['kind'])
+        question_kind = original.get('kind', task['kind'])
+        raw_fields, _ = _split_fields(original['raw_text'], question_kind)
         values = [('stem', raw_fields['stem'])] + [('options.' + k, v) for k, v in raw_fields['options'].items()]
         values += [('answer', raw_fields['answer']), ('analysis', raw_fields['analysis'])]
         ref_fields = {ref: key for key, text in values for ref in REF.findall(text)}
         loc_refs = {f.get('location'): fid for fid, f in formulas.items() if fid in original.get('formula_ids', [])}
         loc_refs.update({a.get('location'): aid for aid, a in assets.items() if aid in REF.findall(original['raw_text'])})
         question = {k: original[k] for k in ('id', 'number', 'location')}
-        question.update(kind=task['kind'], kind_label=result['kind_label'], fields=[], problems=[],
+        question.update(kind=question_kind, kind_label={'choice': '选择题', 'blank': '填空 / 考点'}.get(question_kind, '待复核题型'), fields=[], problems=[],
                         location_label=_location_label(original['location']), preview_notes=[])
         refs_to_problems, fields_to_problems, seen = {}, {}, {}
         for entry in issues:

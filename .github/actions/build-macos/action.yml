@@ -48,13 +48,16 @@ runs:
     - name: Mixed formula business and native capture checks
       shell: bash
       run: python scripts/mixed_formula_smoke.py --exe 'build/中文 macOS smoke/中文 解压/题库转换.app/Contents/MacOS/题库转换' --out 'build/混合 Mac 验证'
+    - name: Composite questions, blank binding and table policy in frozen program
+      shell: bash
+      run: python scripts/composite_smoke.py --exe 'build/中文 macOS smoke/中文 解压/题库转换.app/Contents/MacOS/题库转换' --out 'build/复合 Mac 验证'
     - name: Prepare exact verified ZIP and checksum
       env:
         QA_ARCH: ${{ inputs.architecture }}
       shell: bash
       run: |
         cp 'build/中文 macOS smoke/portable-candidate.zip' "dist/qa-parser-macos-${QA_ARCH}-candidate.zip"
-        python scripts/candidate_metadata.py --archive "dist/qa-parser-macos-${QA_ARCH}-candidate.zip" --smoke 'build/中文 macOS smoke/smoke-report.json' --target "macos-${QA_ARCH}" --output dist/release-metadata.json --runtime-lock packaging/macos-runtime-lock.json
+        python scripts/candidate_metadata.py --archive "dist/qa-parser-macos-${QA_ARCH}-candidate.zip" --smoke 'build/中文 macOS smoke/smoke-report.json' --target "macos-${QA_ARCH}" --output dist/release-metadata.json --runtime-lock packaging/macos-runtime-lock.json --composite 'build/复合 Mac 验证/composite-report.json'
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       if: success() && inputs.upload-artifacts == 'true'
       with:
@@ -75,6 +78,7 @@ runs:
           build/macos-ci/build-manifest.json
           build/macos-ci/resources-manifest.json
           build/macos-ci/*.log
+          build/复合 Mac 验证/composite-report.json
           build/中文 macOS smoke/smoke-report.json
           build/中文 macOS smoke/native-window.json
           build/中文 macOS smoke/native-wmf.json

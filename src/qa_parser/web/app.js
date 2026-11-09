@@ -69,7 +69,7 @@
       nameWrap.append(element("span", "file-symbol", "DOC"));
       const nameText = element("div");
       const detectedKind = result?.kind || result?.detected_kind || result?.classification?.kind;
-      const kindLabel = detectedKind === "choice" ? "选择题" : detectedKind === "blank" ? "填空 / 考点" : "";
+      const kindLabel = detectedKind === "choice" ? "选择题" : detectedKind === "blank" ? "填空 / 考点" : detectedKind === "mixed" ? "混合题型" : "";
       const filename = element("p", "file-name", file.name);
       filename.title = file.name;
       nameText.append(filename, element("span", "file-size", `${bytes(file.size)}${kindLabel ? ` · ${kindLabel}` : ""}`));
@@ -187,7 +187,7 @@
     }
   }
   function updateModeNote(mode) {
-    $("mode-note").textContent = mode === "auto" ? "支持混合添加选择题和填空题文档。" : "题型不符的文件将停止转换。";
+    $("mode-note").textContent = mode === "auto" ? "逐题识别选择和填空，支持共享材料题组；未支持的题目单独报告。" : "只导出所选题型；不符的题目将单独报告。";
   }
   function rememberMode(mode) {
     if (!["auto", "choice", "blank"].includes(mode) || mode === rememberedMode) return;

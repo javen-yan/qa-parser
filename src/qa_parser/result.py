@@ -20,6 +20,12 @@ REASONS = {
     "no_questions": "未找到可识别的题目",
     "source_changed": "输入文档发生变化",
     "run_failure": "文档无法读取或处理",
+    "unknown_kind": "题型或答案归属不明确",
+    "group_answer_binding": "题组答案无法按子题编号准确对应",
+    "group_analysis_binding": "题组解析无法按子题编号准确对应",
+    "blank_answer_alignment": "空位与答案无法一一对应，未猜测回填",
+    "table_interaction_skipped": "按策略跳过表格内交互填空，原内容已保留",
+    "table_role_unknown": "表格用途无法可靠判断",
 }
 
 
@@ -37,17 +43,22 @@ def user_result(summary: dict, quarantine: dict) -> dict:
     affected = []
     for q in quarantine.get("questions", []):
         reasons = list(dict.fromkeys(REASONS.get(i["code"], "部分内容无法可靠处理") for i in q["issues"]))
-        affected.append({"id": q.get("id"), "number": q["number"], "reasons": reasons})
+        affected.append({"id": q.get("id"), "number": q["number"], "reasons": reasons,
+                         "policy_skipped": any(i.get("policy_skip") for i in q["issues"])})
     reasons = list(dict.fromkeys(
         [REASONS.get(i["code"], "文档无法可靠处理") for i in quarantine.get("document_issues", [])]
         + [reason for q in affected for reason in q["reasons"]]))
     return {"status": status, "message": message, "reasons": reasons,
+            "counts": summary.get("counts", {}),
             "affected_questions": affected, "report": "result.txt",
             "diagnostics": "quarantine.json", "export": "export" if passed else None}
 
 
 def result_text(result: dict, brief: bool = False) -> str:
     lines = [result["message"]]
+    counts = result.get("counts", {})
+    if counts:
+        lines.append(f"原题/题组 {counts['original_questions']}；题组展开子题 {counts['subquestions']}；输出单元 {counts['output_units']}；已导出 {counts['exported']}；按策略跳过 {counts['policy_skipped']}；失败或待复核 {counts['failed_or_review']}。")
     if result["reasons"]:
         lines.append("原因：" + "；".join(result["reasons"]) + "。")
     affected = result["affected_questions"]
