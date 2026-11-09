@@ -91,6 +91,8 @@ def test_prepare_download_gate_and_plan(sync,tmp_path,monkeypatch):
     monkeypatch.setattr(sync,'api',api);monkeypatch.setattr(sync,'assets',lambda *a:items)
     report=sync.prepare('test/repo','123',(target,),tmp_path/'plan',plan_only=True)
     assert report['status']=='planned' and calls==[2]
+    assert report['release_url'] == 'https://github.com/test/repo/releases/tag/' + owner['tag']
+    assert report['release_url'] in (tmp_path/'plan'/target/'README.txt').read_text()
     report=sync.prepare('test/repo','123',(target,),tmp_path/'real')
     assert report['status']=='downloaded-and-verified' and calls==[2,2,1]
     report=sync.prepare('test/repo','123',(target,),tmp_path/'cached',archive_cache=tmp_path/'real')

@@ -77,6 +77,7 @@ def prepare(repo, release_id, targets, work, *, plan_only=False, archive_cache=N
         raise ValueError('Unknown target')
     release = api(f'repos/{repo}/releases/{release_id}')
     owner, prefix = release_owner(repo, release)
+    release_url = f"https://github.com/{repo}/releases/tag/{quote(owner['tag'], safe='')}"
     current = assets(repo, release_id)
     # Candidate archives have a fixed name; never enumerate arbitrary assets.
     for target in targets:
@@ -130,7 +131,7 @@ def prepare(repo, release_id, targets, work, *, plan_only=False, archive_cache=N
         checksum = folder / 'SHA256SUMS.txt'
         checksum.write_text(f"{data['zip_sha256']}  {filename}\n", encoding='utf-8')
         notes = folder / 'README.txt'
-        notes.write_text(f"题库转换 {owner['tag']} / {target}\n源码：{owner['commit']}\nRelease：{release['html_url']}\n"
+        notes.write_text(f"题库转换 {owner['tag']} / {target}\n源码：{owner['commit']}\nRelease：{release_url}\n"
                          '完整解压后运行，Windows 双击 EXE，Mac 打开 .app；保留运行时与许可证。\n'
                          '原生合成检查已通过；真实题库、客户电脑、签名公证及目标系统导入未验收。\n'
                          + ('此为候选草稿，不是正式版。\n' if owner['mode'] == 'manual' else ''), encoding='utf-8')
@@ -138,7 +139,7 @@ def prepare(repo, release_id, targets, work, *, plan_only=False, archive_cache=N
                      'sha256': data['zip_sha256'], 'bytes': data['bytes'],
                      'files': [str(p) for p in (archive, metadata, checksum, notes)]})
     return {'schema_version': 1, 'status': 'planned' if plan_only else 'downloaded-and-verified',
-            'repository': repo, 'release_id': str(release_id), 'release_url': release['html_url'],
+            'repository': repo, 'release_id': str(release_id), 'release_url': release_url,
             'draft': release['draft'], 'commit': owner['commit'], 'run_id': owner['run_id'],
             'tag': owner['tag'], 'mode': owner['mode'], 'release_prefix': prefix + '/release', 'release_files': release_files, 'targets': rows}
 
