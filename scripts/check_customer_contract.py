@@ -11,6 +11,10 @@ def check(baseline,candidate,out):
     rows=[];latex=[];screens=[]
     for path in sorted(candidate.glob('*/task/task.json')):
         t=json.loads(path.read_text());b,broot=old[t['source']['sha256']];root=path.parent
+        previous_formulas={f['id']:f for f in b['formulas']}
+        for f in t['formulas']:
+            assert f['source']['sha256']==previous_formulas[f['id']]['source']['sha256']
+            assert f.get('latex')==previous_formulas[f['id']].get('latex')
         count=lambda x:dict(Counter(f['status'] for f in x['formulas']))
         original=lambda x:{(a['location'],a['sha256']) for a in x['assets'] if not a.get('origin')}
         assert original(t)==original(b),t['source']['name']
@@ -36,7 +40,7 @@ def check(baseline,candidate,out):
             if f['status']=='converted':latex.append({'source':t['source']['name'],'id':f['id'],'latex':f['latex']})
         rows.append({'source':t['source']['name'],'questions':len(t['questions']),'exported':manifest['exported_questions'],
                      'before':count(b),'after':count(t),'original_images':len(original(t)),
-                     'original_images_sha256_unchanged':True,'difficulty_rank_unchanged':True,'reference_occurrences':occurrences,
+                     'formula_source_and_latex_unchanged':True,'original_images_sha256_unchanged':True,'difficulty_rank_unchanged':True,'reference_occurrences':occurrences,
                      'exported_images':len(mapping),'omitted':[q['number'] for q in manifest['omitted_questions']]})
     assert len(rows)==9
     out.mkdir(parents=True,exist_ok=True)
