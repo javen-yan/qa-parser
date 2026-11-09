@@ -9,7 +9,7 @@
   "stable_release_blockers": [],
   "variant": "light",
   "optional_original_renderer": "Mac local full bundle only; not part of cloud basic candidate",
-  "approval_scope": "User explicitly authorized formal v0.3.1 from merged main, three-platform OSS distribution and retirement of the previous Release only after complete verification; customer acceptance remains separate.",
+  "approval_scope": "User explicitly requested formal v0.3.2 from merged main. Three-platform native validation and verified OSS delivery precede retirement of historical Release records; preserve git tags and disclose incomplete customer acceptance.",
   "known_limitations": [
     "Customer Windows 11 portable acceptance is incomplete",
     "macOS Developer ID signing/notarization is not complete",

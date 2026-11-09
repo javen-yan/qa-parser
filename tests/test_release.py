@@ -88,3 +88,5 @@ def test_explicitly_approved_stable_version_keeps_real_acceptance_limits(tmp_pat
     assert not result['prerelease']
     notes=(tmp_path/'stable/RELEASE_NOTES.md').read_text()
     assert '正式发布' in notes and '仍需验收' in notes
+    assert '参考aaa001.png)' in notes and '实际 `001.png`' in notes
+    assert '导出899题' in notes and '易／中／难' in notes
