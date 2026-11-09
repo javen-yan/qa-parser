@@ -31,3 +31,7 @@ python3 scripts/run_local_release.py --release-id 438806506 --retire-ids 4386678
 运行前需要本机 GitHub 管理权限、GitHub 网络和现有仓库 OSS Secrets。首次出现预算/网络错误不应删除已有草稿或重打源码 tag。
 
 v0.3.3 原始源码为 `012f57b88a9e5269d8ddb048fdc9ed0a55acd3e3`，生产 run `42574069235`，已有草稿 `438806506`。本次基础设施整合不改变这些身份，也不替代客户环境和目标 APP 验收。
+
+## v0.3.3 收尾结果
+
+[运行 42581561779](https://github.com/javen-yan/qa-parser/actions/runs/42581561779) 已成功完成：三平台包及说明公开 SHA 校验通过，Release 438806506 为正式发布且镜像附件为零，指定旧 Release 记录已不在清单。旧源码 tags、OSS 历史对象及仓库私有状态保留；一次性本机 runner 已注销、临时目录已删除。原生生产 run 42574069235 的预算失败状态原样保留，发布依据是其中三个成功的原生任务及原始包摘要，不伪造整个原运行成功。

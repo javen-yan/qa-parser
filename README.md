@@ -21,22 +21,28 @@ v0.3.2 优先将可靠公式输出为 `$$...$$` 文本，不因多个下标或�
 
 原图完整版只对审计通过的原始WMF进行回放，不猜测未知公式。4709个LaTeX公式的显示构造已检查，不能等同于所有公式逐项人工语义认证。两个Mac包为本机验证的独立应用，其他电脑、签名公证及客户安全策略仍需实际验证。
 
-## 云端构建与下载（Windows / Mac双架构）
+## 正式下载与统一发布入口
 
-Mac使用 [macOS native portable candidates 工作流](https://github.com/javen-yan/qa-parser/actions/workflows/macos-portable.yml)，分别在M系列ARM64和Intel x86_64原生构建。云端只提供轻量版，不能替代本地原图完整版900/900结论。架构、缓存及版本发布约定见[平台矩阵](docs/platform-matrix.md)。
+[v0.3.3 正式版本页](https://github.com/javen-yan/qa-parser/releases/tag/v0.3.3) 已发布。三平台文件已上传 OSS 并完成匿名完整下载 SHA-256 校验：
 
-仓库的 [Windows portable candidate 工作流](https://github.com/javen-yan/qa-parser/actions/workflows/windows-portable.yml) 仅手动触发。在 Actions 中选择该工作流 → Run workflow。只有构建、合成回归、解压后冻结程序及原生窗口冒烟均通过，才上传 `qa-parser-windows-x64-candidate` artifact；证据另存 `windows-build-evidence`，保留14天。
+| 平台 | 下载 |
+|---|---|
+| Windows x64 | [便携 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.3/windows-x64/qa-parser-v0.3.3-windows-x64-light.zip) |
+| Mac Apple Silicon（ARM64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.3/macos-arm64/qa-parser-v0.3.3-macos-arm64-light.zip) |
+| Mac Intel（x86_64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.3/macos-x86_64/qa-parser-v0.3.3-macos-x86_64-light.zip) |
 
-发布统一使用 [Build and publish release](https://github.com/javen-yan/qa-parser/actions/workflows/release.yml)：构建、三平台验证、OSS 上传、公网校验、Release 更新和镜像附件清理一次完成。失败后选择 `resume` 并填写已有 Release ID，复用验证包；预算受限可用一次性本机 runner 收尾，沿用 GitHub Secrets。旧版本仅按明确指定 ID 清理。详见[统一发布流程](docs/release-pipeline.md)。
+[校验和](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.3/release/SHA256SUMS.txt) · [分发验证记录](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.3/release/delivery-record-windows-x64-macos-arm64-macos-x86_64.json)
 
-下载artifact，先解开GitHub外层归档，再完整解压其中的 `qa-parser-windows-x64-candidate.zip`，进入“题库转换”文件夹双击EXE。保留 `_internal` 及其子目录。固定版WebView2、WMF转换器、离线字体和Python运行环境均随包分发；不在首次启动时下载。任务及浏览器缓存写入用户LOCALAPPDATA，不写程序目录。
+完整解压对应 ZIP，Windows 进入“题库转换”文件夹双击 EXE，Mac 打开 `.app`。保留运行时和许可证。固定 WebView2、WMF 转换器、离线字体及 Python 运行时随 Windows 包分发，首次启动不下载开发环境；任务和缓存写入用户目录。
 
-**各平台云端包目前是候选构建。** CI运行环境是Windows Server 2022 x64；客户Windows11 x64的断网、非管理员、只读程序目录、安全软件及签名验收需分别记录。真实9份Word未上传，不能把合成测试通过写成Windows 900/900。Windows暂不启用Mac完整版的LibreOffice原图路径，复杂原图可能进入未导出清单。详见[Windows构建及验证说明](docs/windows-ci.md)。
+发布只使用 [Build and publish release](https://github.com/javen-yan/qa-parser/actions/workflows/release.yml) 一个入口：构建、三平台验证、OSS 上传、公网校验、Release 更新和镜像附件清理一次完成。失败后选择 `resume` 并填写已有 Release ID，复用已验证包；预算受限时可由一次性本机 runner 收尾，沿用 GitHub Secrets。旧版本仅按明确指定 ID 清理。原 Windows/Mac 单平台 workflow 仅供内部复用，旧 OSS 自动接续和独立清理入口已移除。详见[统一发布流程](docs/release-pipeline.md)。
+
+本次三平台包仍对应原始源码 `012f57b88a9e5269d8ddb048fdc9ed0a55acd3e3`；[统一收尾运行](https://github.com/javen-yan/qa-parser/actions/runs/42581561779) 复用既有原生验证包，没有重建产品。云端只提供轻量版，不能替代历史本地原图完整版结论。Windows 原生验证环境为 Server 2022 x64，客户 Windows 11、签名公证及目标 APP 导入/显示仍需验收；私有 Word 未上传。详见[平台矩阵](docs/platform-matrix.md)。
 
 ## 输出约定
 
 - 保持Reference两份模板的列名、顺序：选择题14列，填空/考点4列。未约定的ID、sid、questionType等编码默认空。
-- 选择题保留题干、选项、答案，分析/详解按顺序合并。难度为低/中/高的稳定随机占位，可重复，不代表教学评估。
+- 选择题保留题干、选项、答案，分析/详解按顺序合并。难度为易/中/难的稳定随机占位，可重复，不代表教学评估。
 - 填空一道大题一行，题目保留空位；空位与答案有明确对应时，考点为按答案回填后的完整陈述，答案按空位顺序用 ASCII 逗号连接，单空内部标点和同义答案不拆分。
 - LaTeX使用`$$…$$`；普通图片在原位置引用“参考aaa001.png)”等真实资源。可靠性不足时保留证据并明确隔离，不静默丢失。
 - 自动转换交付已通过题目，并明确报告未导出数量、题号和原因；没有可导出题目时不生成伪成功Excel。低层`export`命令仍需显式`--allow-partial`才能部分导出。
