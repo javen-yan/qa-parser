@@ -40,6 +40,7 @@ def main():
     parser.add_argument('--release-id', required=True)
     parser.add_argument('--retire-ids', default='')
     parser.add_argument('--evidence', type=Path, required=True)
+    parser.add_argument('--runner-archive', type=Path, help='Previously downloaded official archive; official SHA is still required')
     args = parser.parse_args()
     if not re.fullmatch(r'[1-9][0-9]*', args.release_id) or (args.retire_ids and not re.fullmatch(r'[1-9][0-9]*(?:,[1-9][0-9]*)*', args.retire_ids)):
         raise ValueError('Explicit numeric release IDs are required')
@@ -60,7 +61,9 @@ def main():
     name = 'qa-release-once-' + uuid.uuid4().hex[:12]
     try:
         archive = root / 'runner.tar.gz'
-        for attempt in range(4):
+        if args.runner_archive:
+            shutil.copyfile(args.runner_archive, archive)
+        for attempt in range(0 if args.runner_archive else 4):
             try:
                 with urlopen(item['download_url'], timeout=60) as response, archive.open('wb') as target:
                     shutil.copyfileobj(response, target)
