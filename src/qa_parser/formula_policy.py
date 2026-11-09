@@ -1,43 +1,37 @@
-"""Conservative export heuristic, not certification of the customer's renderer."""
+"""Prefer unmodified LaTeX accepted by the source structural converter.
+
+This is a corruption guard, not a complete TeX parser or customer renderer
+certification. Source diagrams stay images; uncertain objects retain evidence.
+"""
 import re
 
-VERSION = 'mixed-formula/1'
-GREEK = r'\\(?:alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|rho|sigma|tau|phi|omega|Delta|Omega)'
-ATOM = rf'(?:[A-Za-z0-9]+|{GREEK})'
+VERSION = 'formula-text-first/2'
 
 
 def decide(latex: str) -> dict:
     def result(mode, reason):
         return {'version': VERSION, 'mode': mode, 'reason': reason,
                 'customer_compatibility': 'unverified'}
-    if re.search(r'</?[A-Za-z][^>]*>|\$|[\x00-\x08\x0b\x0c\x0e-\x1f]', latex):
+    if not latex.strip() or re.search(r'</?[A-Za-z][^>]*>|\$|[\x00-\x08\x0b\x0c\x0e-\x1f]', latex):
         return result('review', 'formula_contains_markup_or_delimiter')
-    if re.search(r'(?<![A-Za-z0-9}])\^|\^(?:$|[^A-Za-z0-9{])', latex):
-        return result('image', 'unverified_superscript_syntax')
-    if latex.count('_') > 1:
-        return result('image', 'multiple_subscripts_emphasis_risk')
-    if '_' in latex and '^' in latex:
-        return result('image', 'combined_subscript_superscript')
-    # Braces around atoms do not change their meaning. Never edit exported TeX.
-    normalized = re.sub(r'\{(' + ATOM + r')\}', r'\1', latex)
-    if re.fullmatch(ATOM + r'_(?:' + ATOM + r')', normalized):
-        return result('text', 'single_atomic_subscript_pending_field_context')
-    if '_' in latex:
-        return result('image', 'subscript_in_compound_expression')
-    # One atomic fraction is allowed. Nested/compound arguments do not match.
-    residual = re.sub(r'\\frac\{(' + ATOM + r')\}\{(' + ATOM + r')\}', 'F', latex)
-    residual = re.sub(r'\\sqrt\{(' + ATOM + r')\}', 'S', residual)
-    residual = re.sub(GREEK, 'G', residual)
-    residual = re.sub(r'\{([A-Za-z0-9]+)\}', r'\1', residual)
-    if re.fullmatch(r'[A-Za-z0-9\s.+\-*/=(),^]+', residual):
-        return result('text', 'simple_expression_or_atomic_fraction')
-    return result('image', 'structure_outside_conservative_text_subset')
+    if re.search(r'[_^]\s*(?:[_^}]|$)', latex):
+        return result('review', 'invalid_script_argument')
+    depth = 0
+    for token in re.findall(r'\\.|[{}]', latex):
+        if token == '{':
+            depth += 1
+        elif token == '}':
+            depth -= 1
+            if depth < 0:
+                return result('review', 'unbalanced_formula_braces')
+    if depth:
+        return result('review', 'unbalanced_formula_braces')
+    if re.search(r'\\(?:chemfig|includegraphics)\b|\\begin\{(?:tikzpicture|picture)\}', latex):
+        return result('review', 'diagram_requires_original_image')
+    return result('text', 'source_structural_conversion_text_first')
 
 
 def apply_field_context(ids: list[str], formulas: dict, policies: dict) -> None:
-    scripted = [fid for fid in ids if fid in formulas and '_' in (formulas[fid].get('latex') or '')]
-    if len(scripted) >= 2:
-        for fid in scripted:
-            if policies[fid]['mode'] == 'text':
-                policies[fid] = {**policies[fid], 'mode': 'image',
-                                 'reason': 'multiple_subscript_formulas_in_same_field'}
+    # The client must parse math delimiters before Markdown emphasis.
+    # Sharing a cell alone must never force correct formulas into images.
+    return

@@ -129,9 +129,9 @@ def check_run(folder: Path, kind: str, original_png: bytes):
         require(r'$$\frac{U}{I}$$' in row['题目'], 'OMML fraction lost or altered')
         require(row['答案'] == 'A', 'Answer ownership changed')
         require('合成分析文本。' in row['解析'] and '合成详解文本。' in row['解析'], 'Analysis/detail merge lost content')
-        require(row['困难程度'] in ['低', '中', '高'], 'Difficulty outside configured values')
-        require('参考aaa0001.png)' in row['optionA'] and '参考aaa0001.png)' in row['选择项'], 'Image option reference missing')
-        require((folder / 'export/images/aaa0001.png').read_bytes() == original_png, 'Original PNG bytes changed')
+        require(row['困难程度'] in ['易', '中', '难'], 'Difficulty outside configured values')
+        require('参考aaa001.png)' in row['optionA'] and '参考aaa001.png)' in row['选择项'], 'Image option reference missing')
+        require((folder / 'export/images/001.png').read_bytes() == original_png, 'Original PNG bytes changed')
         require(summary['exported_formulas']['converted'] == 1, 'Expected one real OMML conversion')
     else:
         require(row['考点'] == '', 'Default knowledge point must remain blank')
@@ -155,7 +155,7 @@ def check_batch(folder: Path):
         require(not any(n.endswith(('.json', '.log', '.docx', '.xml', '.bin')) for n in names), 'Internal diagnostics/source leaked into delivery ZIP')
         require('_display/NotoSansCJKsc-Regular.otf' in names and '_display/OFL.txt' in names, 'Shared font or license missing')
         require(len([n for n in names if n.endswith('.png')]) == 1, 'Synthetic image count differs')
-        require('合成 选择.xlsx' in names and '合成 选择/aaa0001.png' in names, 'Same-basename delivery layout differs')
+        require('合成 选择.xlsx' in names and '合成 选择/001.png' in names, 'Same-basename delivery layout differs')
     return {'questions': 2, 'zip_crc': 'passed', 'xlsx_files': 2, 'internal_files_excluded': True}
 
 

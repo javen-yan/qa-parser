@@ -14,6 +14,7 @@ import shutil
 import tempfile
 
 import xlsxwriter
+from .image_references import DEFAULT_REFERENCE, reference_map, referenced_names
 
 
 CHOICE_COLUMNS = [
@@ -21,7 +22,6 @@ CHOICE_COLUMNS = [
     "optionA", "optionB", "optionC", "optionD", "title", "questionType",
 ]
 BLANK_COLUMNS = ["ID", "考点", "题目", "答案"]
-_IMAGE_REF = re.compile(r"(?<![A-Za-z0-9_.-])((?:aaa)?\d{4,}\.(?:png|jpe?g|gif|bmp|tiff?|wmf|emf|svg|webp))(?![\w.-])", re.I)
 
 
 class ExportError(ValueError):
@@ -54,7 +54,7 @@ def _row(question: dict, kind: str, config: dict, columns: list[str]) -> list[st
     values = {
         "ID": "", "sid": "", "questionType": config.get("question_type", ""),
         "类型": config.get("choice_type", "单选题"),
-        "困难程度": question.get("difficulty", ""),
+        "困难程度": {"低": "易", "高": "难"}.get(question.get("difficulty", ""), question.get("difficulty", "")),
         "题目": question.get("stem", ""), "title": question.get("stem", ""),
         "选择项": "\n".join(f"{letter}．{_string(value)}" for letter, value in sorted(options.items())),
         "答案": question.get("answer", ""), "解析": question.get("analysis", ""),
@@ -71,7 +71,8 @@ def _row(question: dict, kind: str, config: dict, columns: list[str]) -> list[st
     for column, field in config.get("column_fields", {}).items():
         if field not in question:
             raise ExportError(f"Mapped question field does not exist: {field}")
-        values[column] = question[field]
+        values[column] = ({"低": "易", "高": "难"}.get(question[field], question[field])
+                          if field == "difficulty" else question[field])
     unknown = set(columns) - set(values)
     if unknown:
         raise ExportError(f"No mapping/default for columns: {sorted(unknown)}")
@@ -162,9 +163,7 @@ def export_task(task: dict, task_dir: Path, out_dir: Path, allow_partial: bool =
             raise ExportError("asset_filenames must be a list of filenames")
         selected_names.update(declared)
         combined = "\n".join(row)
-        selected_names.update(_IMAGE_REF.findall(combined))
-        # Also honor arbitrary filenames in a caller's resource manifest.
-        selected_names.update(name for name in assets if isinstance(name, str) and name in combined)
+        selected_names.update(referenced_names(combined, config.get('image_reference', DEFAULT_REFERENCE)))
     missing = selected_names - assets.keys()
     if missing:
         raise ExportError(f"Referenced images missing from manifest: {sorted(missing)}")
@@ -173,7 +172,8 @@ def export_task(task: dict, task_dir: Path, out_dir: Path, allow_partial: bool =
         "schema_version": 1,
         "source": task.get("source", {}),
         "kind": kind,
-        "image_reference": config.get("image_reference", "参考{filename})"),
+        "image_reference": config.get("image_reference", DEFAULT_REFERENCE),
+        "image_reference_map": reference_map(sorted(selected_names), config.get('image_reference', DEFAULT_REFERENCE)),
         "import_contract": "unverified",
         "partial_requested": allow_partial,
         "partial": bool(omitted),

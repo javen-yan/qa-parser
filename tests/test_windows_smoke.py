@@ -29,7 +29,7 @@ def test_synthetic_smoke_uses_actual_omml_image_and_multiblank(tmp_path):
         run_document(inputs[kind], kind, target)
         result = smoke.check_run(target, kind, png)
         assert len(result['questions']) == 1
-    image = tmp_path / 'choice/export/images/aaa0001.png'
+    image = tmp_path / 'choice/export/images/001.png'
     image.write_bytes(b'tampered')
     with pytest.raises(AssertionError, match='PNG bytes changed'):
         smoke.check_run(tmp_path / 'choice', 'choice', png)

@@ -130,8 +130,8 @@ def test_contract_defaults_and_required_fields(tmp_path):
 def test_customer_reference_without_manifest_fails_in_every_field(tmp_path, field):
     task = sample_task()
     if field == 'optionA':
-        task['questions'][0]['options']['A'] = '前参考aaa0001.png)后'
+        task['questions'][0]['options']['A'] = '前参考aaa001.png)后'
     else:
-        task['questions'][0][field] = '前参考aaa0001.png)后'
+        task['questions'][0][field] = '前参考aaa001.png)后'
     with pytest.raises(ExportError, match='missing from manifest'):
         export_task(task, tmp_path, tmp_path/'out')

@@ -47,9 +47,10 @@ def validate_batch(root):
         work=Path(row['output']);task=json.loads((work/'task/task.json').read_text(encoding='utf-8'))
         q=task['questions']
         assert r'$$\frac{U}{I}$$' in q[0]['stem']
-        assert '参考aaa0001.png)' in q[1]['analysis'] and '参考aaa0002.png)' in q[1]['analysis']
-        assert '参考aaa0003.png)' in q[2]['stem'] and '参考aaa0004.png)' in q[2]['analysis']
-        assert len({a['filename'] for a in task['assets']})==4
+        assert '$${R}_{x}$$' in q[1]['analysis'] and '$${R}_{0}$$' in q[1]['analysis']
+        assert '$$' in q[2]['stem'] and '参考aaa001.png)' in q[2]['analysis']
+        assert all(f['status']=='converted' for f in task['formulas'] if f.get('latex'))
+        assert len({a['filename'] for a in task['assets']})==1
         report=json.loads((work/'export/report.json').read_text(encoding='utf-8'))
         assert report['exported_questions']==3
         for image in report['images']:
@@ -61,12 +62,12 @@ def validate_batch(root):
                           'omitted':[q['number'] for q in report['omitted_questions']]})
     with ZipFile(summary['delivery']) as z:
         names=z.namelist();assert z.testzip() is None
-        assert {'01.xlsx','01/aaa0001.png','物理 练习.xlsx','物理 练习/aaa0001.png'}<=set(names)
+        assert {'01.xlsx','01/001.png','物理 练习.xlsx','物理 练习/001.png'}<=set(names)
         assert not any('/images/' in n or n.endswith('/questions.xlsx') for n in names)
         for i,stem in enumerate(['01','物理 练习'],1):
             from urllib.parse import quote
             html=z.read(f'_说明/{i:04d}/题目预览.html').decode()
-            assert f'src="../../{quote(stem,safe="")}/aaa0001.png"' in html
+            assert f'src="../../{quote(stem,safe="")}/001.png"' in html
             assert 'url(../../_display/' in html
     return semantics
 
