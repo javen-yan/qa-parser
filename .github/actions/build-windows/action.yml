@@ -29,6 +29,7 @@ runs:
     - name: Install build-only dependencies
       shell: pwsh
       run: |
+        $env:GITHUB_SHA = (git rev-parse HEAD).Trim()
         python -m pip install -r requirements-windows-bootstrap.lock
         if ($LASTEXITCODE -ne 0) { throw 'Build backend bootstrap failed' }
         python -m pip install --no-build-isolation -r requirements-windows.lock
@@ -44,13 +45,16 @@ runs:
     - name: Public synthetic regression (private corpus excluded explicitly)
       shell: pwsh
       run: |
+        $env:GITHUB_SHA = (git rev-parse HEAD).Trim()
         python scripts/check_public_tests.py --report build/windows-public-tests.json --junitxml build/windows-public-tests.xml
         if ($LASTEXITCODE -ne 0) { throw 'Regression failed' }
         node tests/test_math_preview.js
         if ($LASTEXITCODE -ne 0) { throw 'Math display regression failed' }
     - name: Build native portable folder with pinned offline resources
       shell: pwsh
-      run: ./packaging/windows-build.ps1
+      run: |
+        $env:GITHUB_SHA = (git rev-parse HEAD).Trim()
+        ./packaging/windows-build.ps1
     - name: Save validated native downloads
       if: steps.cache-native.outputs.cache-hit != 'true'
       uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -60,26 +64,31 @@ runs:
     - name: Frozen CLI, native window and relocated-resource checks
       shell: pwsh
       run: |
+        $env:GITHUB_SHA = (git rev-parse HEAD).Trim()
         python scripts/windows_smoke.py --exe 'dist/windows/题库转换/题库转换.exe' --out 'build/中文 Windows smoke' --gui
         if ($LASTEXITCODE -ne 0) { throw 'Frozen application smoke failed' }
     - name: Startup diagnostics and controlled Internet-zone reproduction
       shell: pwsh
       run: |
+        $env:GITHUB_SHA = (git rev-parse HEAD).Trim()
         python scripts/windows_startup_smoke.py --exe 'build/中文 Windows smoke/中文 解压/题库转换/题库转换.exe' --out 'build/Windows startup diagnostics'
         if ($LASTEXITCODE -ne 0) { throw 'Startup diagnostics regression failed' }
     - name: Mixed formula business and native capture checks
       shell: pwsh
       run: |
+        $env:GITHUB_SHA = (git rev-parse HEAD).Trim()
         python scripts/mixed_formula_smoke.py --exe 'build/中文 Windows smoke/中文 解压/题库转换/题库转换.exe' --out 'build/混合 Windows 验证'
         if ($LASTEXITCODE -ne 0) { throw 'Mixed formula acceptance failed' }
     - name: Composite questions, blank binding and table policy in frozen program
       shell: pwsh
       run: |
+        $env:GITHUB_SHA = (git rev-parse HEAD).Trim()
         python scripts/composite_smoke.py --exe 'build/中文 Windows smoke/中文 解压/题库转换/题库转换.exe' --out 'build/复合 Windows 验证'
         if ($LASTEXITCODE -ne 0) { throw 'Composite frozen acceptance failed' }
     - name: Create portable ZIP only after successful smoke
       shell: pwsh
       run: |
+        $env:GITHUB_SHA = (git rev-parse HEAD).Trim()
         Copy-Item 'build/中文 Windows smoke/portable-candidate.zip' 'dist/qa-parser-windows-x64-candidate.zip'
         python scripts/candidate_metadata.py --archive dist/qa-parser-windows-x64-candidate.zip --smoke 'build/中文 Windows smoke/smoke-report.json' --target windows-x64 --output dist/release-metadata.json --runtime-lock packaging/windows-runtime-lock.json --startup 'build/Windows startup diagnostics/summary.json' --composite 'build/复合 Windows 验证/composite-report.json'
         if ($LASTEXITCODE -ne 0) { throw 'Candidate metadata validation failed' }

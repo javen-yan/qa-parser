@@ -58,3 +58,26 @@ def test_source_assembly_uses_original_policy_not_current_main(monkeypatch, tmp_
     assemble = p.source_assembler('012f57b88a9e5269d8ddb048fdc9ed0a55acd3e3', tmp_path)
     assert assemble.__globals__['ROOT'] == tmp_path / 'source-policy'
     assert (tmp_path / 'source-policy/pyproject.toml').is_file()
+
+
+@pytest.mark.parametrize('fault', [None, 'moved_tag', 'source_ref', 'branch', 'workflow', 'native_failure'])
+def test_dispatched_tag_binds_workflow_and_product_independently(producer, fault):
+    m, owner, run, jobs, original_read = producer
+    owner.update(workflow_commit='b' * 40, source_ref=owner['tag'])
+    run.update(event='workflow_dispatch', head_branch='main', head_sha='b' * 40)
+    if fault == 'source_ref': owner['source_ref'] = 'v9.9.9'
+    if fault == 'branch': run['head_branch'] = 'feature'
+    if fault == 'workflow': run['head_sha'] = 'c' * 40
+    if fault == 'native_failure': jobs[0]['conclusion'] = 'failure'
+    def read(endpoint):
+        if '/git/ref/tags/' in endpoint:
+            return {'object': {'type': 'tag', 'sha': 'd' * 40}}
+        if '/git/tags/' in endpoint:
+            return {'object': {'type': 'commit', 'sha': 'e' * 40 if fault == 'moved_tag' else owner['commit']}}
+        return original_read(endpoint)
+    if fault:
+        with pytest.raises(ValueError): m.verify('test/repo', owner, read=read)
+    else:
+        result = m.verify('test/repo', owner, read=read)
+        assert result['commit'] == 'a' * 40
+        assert result['workflow_commit'] == 'b' * 40

@@ -12,12 +12,26 @@ NATIVE = {'prepare', 'windows', 'macos (arm64, macos-15)', 'macos (x86_64, macos
 def verify(repo, owner, *, active_run=None, read=api):
     run_id = str(owner['run_id'])
     run = read(f'repos/{repo}/actions/runs/{run_id}')
-    if (run.get('head_sha') != owner['commit'] or run.get('path') != '.github/workflows/release.yml'
+    if (run.get('head_sha') != owner.get('workflow_commit', owner['commit']) or run.get('path') != '.github/workflows/release.yml'
             or run.get('head_repository', {}).get('full_name') != repo):
         raise ValueError('Native producer repository/source/workflow differs')
     formal = owner['mode'] == 'tag'
     if formal:
-        if run.get('event') != 'push' or run.get('head_branch') != owner['tag']:
+        if 'workflow_commit' in owner:
+            if (not re.fullmatch(r'[0-9a-f]{40}', owner['workflow_commit'])
+                    or run.get('event') != 'workflow_dispatch' or run.get('head_branch') != 'main'
+                    or owner.get('source_ref') != owner['tag']):
+                raise ValueError('Formal dispatch must bind main workflow to an exact source tag')
+            item = read(f"repos/{repo}/git/ref/tags/{owner['tag']}")['object']
+            for _ in range(8):
+                if item['type'] == 'commit':
+                    break
+                if item['type'] != 'tag':
+                    raise ValueError('Invalid source tag object')
+                item = read(f"repos/{repo}/git/tags/{item['sha']}")['object']
+            if item['type'] != 'commit' or item['sha'] != owner['commit']:
+                raise ValueError('Dispatched source tag no longer matches product commit')
+        elif run.get('event') != 'push' or run.get('head_branch') != owner['tag']:
             raise ValueError('Formal assets must come from the exact source tag push')
     elif run.get('event') != 'workflow_dispatch' or run.get('head_branch') != 'main':
         raise ValueError('Manual candidate must originate on main')
@@ -38,6 +52,7 @@ def verify(repo, owner, *, active_run=None, read=api):
         elif active_run != run_id and job.get('status') != 'completed':
             raise ValueError('Previous delivery is still running')
     return {'schema_version': 1, 'repository': repo, 'commit': owner['commit'],
+            'workflow_commit': run.get('head_sha'), 'source_ref': owner.get('source_ref', owner['tag']),
             'producer_run_id': run_id, 'original_run_status': run['status'],
             'original_run_conclusion': run.get('conclusion'), 'run_attempt': run.get('run_attempt'),
             'native_jobs_verified': True,
