@@ -169,3 +169,32 @@ def test_duplicate_question_after_group_is_retained_and_reported():
     assert not qs[0]['issues']
     assert all(any(i['code'] == 'duplicate_number' for i in q['issues']) for q in qs[1:])
     assert '另一个独立题' not in qs[1]['analysis']
+
+
+def test_group_explanation_list_does_not_quarantine_earlier_questions():
+    bs = blocks('1．独立题？', OPTIONS, '【答案】A',
+                '完成下面小题。', '16．选择一？', OPTIONS, '17．选择二？', OPTIONS,
+                '【答案】16．B  17．C', '【解析】16．解释一。', '17．解释二。',
+                '【点睛】共同说明：', '1、影响一。', '2、影响二。', '3、影响三。',
+                '完成下面小题。', '18．下一组？', OPTIONS, '【答案】18．D',
+                '【解析】18．下一组解释。')
+    qs, _, st = build_questions(bs, 'auto', {})
+    assert [q['number'] for q in qs] == ['1', '16', '17', '18']
+    assert [q['answer'] for q in qs] == ['A', 'B', 'C', 'D']
+    assert all(not q['issues'] for q in qs)
+    for q in qs[1:3]:
+        assert all(text in q['analysis'] for text in ('1、影响一。', '2、影响二。', '3、影响三。'))
+        assert {12, 13, 14} <= set(q['block_indices'])
+    assert all('影响' not in q['analysis'] for q in (qs[0], qs[3]))
+    assert len(st['groups']) == 2
+
+
+def test_different_separator_with_own_answer_is_still_a_duplicate_question():
+    bs = blocks('完成下面小题。', '1．选择？', OPTIONS, '2．选择？', OPTIONS,
+                '【答案】1．A  2．B', '【解析】1．解释一。', '2．解释二。',
+                '【点睛】共同说明。', '1、独立题？', OPTIONS, '【答案】C')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert [q['number'] for q in qs] == ['1', '2', '1']
+    assert [q['answer'] for q in qs] == ['A', 'B', 'C']
+    assert all(any(i['code'] == 'duplicate_number' for i in q['issues']) for q in (qs[0], qs[2]))
+    assert '独立题' not in qs[0]['analysis']

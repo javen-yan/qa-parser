@@ -333,7 +333,15 @@ def build_questions(blocks: list[dict], requested_kind: str, config: dict):
                 end = first_answer + 1
                 while end < len(blocks):
                     m = START.match(blocks[end]['text'])
-                    if end in material_starts or end in numbered or HEADING.fullmatch(blocks[end]['text']) or (m and (m.group(1) not in numbers or _new_question_at(blocks, end))):
+                    # Explanation lists often restart at 1 with a different
+                    # separator (e.g. 1、 after questions 116．/117．). Keep
+                    # those paragraphs in the group's analysis, unless their
+                    # own response body and answer prove a new question.
+                    new_question = m and (
+                        (m.group(2) == starts[0][1].group(2) and m.group(1) not in numbers)
+                        or _new_question_at(blocks, end)
+                    )
+                    if end in material_starts or end in numbered or HEADING.fullmatch(blocks[end]['text']) or new_question:
                         break
                     end += 1
                 flush()

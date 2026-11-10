@@ -9,7 +9,7 @@
   "stable_release_blockers": [],
   "variant": "light",
   "optional_original_renderer": "Mac local full bundle only; not part of cloud basic candidate",
-  "approval_scope": "User explicitly approved formal v0.3.3 for the accepted composite-question implementation. Verify all three native packages and full public OSS downloads before retiring v0.3.2 and this task owned candidate drafts; preserve all source tags and disclose incomplete customer acceptance.",
+  "approval_scope": "User explicitly requested committing, packaging and publishing a new Release for the numbered explanation-list compatibility fix (v0.3.4). Verify all three native packages and full public OSS downloads before publication. Preserve existing releases and source tags; disclose incomplete customer acceptance.",
   "known_limitations": [
     "Customer Windows 11 portable acceptance is incomplete",
     "macOS Developer ID signing/notarization is not complete",
