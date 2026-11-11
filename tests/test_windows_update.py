@@ -128,14 +128,6 @@ def test_runtime_tamper_is_rejected(installation):
         stage_update(root, archive, public)
 
 
-def test_macos_never_uses_windows_split_layout(monkeypatch):
-    import sys
-    from qa_parser.windows_distribution import split_app
-    monkeypatch.setattr(sys, 'platform', 'darwin')
-    monkeypatch.setattr(sys, 'frozen', True, raising=False)
-    assert split_app('/Applications/app/v1.0.0/题库转换') is None
-
-
 def test_incomplete_staging_cleanup_does_not_remove_versions(installation):
     root = installation[0]
     stage = root / '.update-staging'

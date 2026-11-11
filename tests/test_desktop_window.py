@@ -104,3 +104,12 @@ def test_stop_service_reaps_owned_renderer_even_after_leader_exits(tmp_path, lea
         leader.wait(timeout=3)
         sibling.terminate()
         sibling.wait(timeout=3)
+
+
+def test_macos_never_uses_windows_split_layout(monkeypatch):
+    import sys
+    from qa_parser.windows_distribution import split_app
+    monkeypatch.setattr(sys, 'platform', 'darwin')
+    monkeypatch.setattr(sys, 'frozen', True, raising=False)
+    assert split_app('/Applications/app/v1.0.0/题库转换') is None
+

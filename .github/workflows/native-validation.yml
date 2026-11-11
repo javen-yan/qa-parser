@@ -12,12 +12,11 @@ env:
 permissions:
   contents: read
 
-concurrency:
-  group: native-validation-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   windows:
+    concurrency:
+      group: native-validation-windows-${{ github.ref }}
+      cancel-in-progress: false
     runs-on: windows-2022
     timeout-minutes: 60
     steps:
@@ -60,6 +59,9 @@ jobs:
             architecture: arm64
           - runner: macos-15-intel
             architecture: x86_64
+    concurrency:
+      group: native-validation-macos-${{ matrix.architecture }}-${{ github.ref }}
+      cancel-in-progress: false
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
