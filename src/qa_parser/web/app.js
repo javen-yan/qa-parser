@@ -235,6 +235,7 @@
     section.append(head);
     const category = [problem.category_label, problem.field_label].filter(Boolean).join(" · ");
     if (category) section.append(element("p", "problem-category", category));
+    if (problem.code === "duplicate_number" && problem.reason) section.append(element("p", "problem-reason", problem.reason));
     if (problem.impact) section.append(element("p", "problem-impact", `影响：${problem.impact}`));
     const diagnostics = element("details", "problem-diagnostics");
     diagnostics.append(element("summary", "", "查看定位与诊断"));
@@ -274,8 +275,11 @@
     const detail = $("problem-detail");
     const content = document.createDocumentFragment();
     const title = element("div", "problem-question-heading");
-    title.append(element("h3", "", `原第 ${question.number} 题`), element("span", "problem-kind", question.kind_label || modeLabel(question.kind)));
+    title.append(element("h3", "", question.display_label || `原题号 ${question.number}`), element("span", "problem-kind", question.kind_label || modeLabel(question.kind)));
     content.append(title);
+    if (question.source_hint) content.append(element("p", "problem-reading-hint", question.source_hint));
+    if (question.source_excerpt) content.append(element("p", "problem-source-excerpt", `在 Word 中搜索题干开头：${question.source_excerpt}`));
+    if (question.source_location_label) content.append(element("p", "problem-reading-hint", question.source_location_label));
     const problems = asArray(question.problems);
     const byId = new Map(problems.map((problem, index) => [problem.id, { problem, index }]));
     const jump = (problemId) => {
@@ -377,8 +381,12 @@
       $("problems-layout").hidden = questions.length === 0;
       const navigation = document.createDocumentFragment();
       questions.forEach((question, questionIndex) => {
-        const button = element("button", "problem-question-button", `第 ${question.number} 题`);
+        const button = element("button", "problem-question-button", question.display_label || `原题号 ${question.number}`);
         button.type = "button";
+        if (question.source_excerpt) {
+          button.append(element("span", "problem-question-excerpt", question.source_excerpt));
+          button.title = `${question.source_hint || ""}\n${question.source_excerpt}\n${question.source_location_label || ""}`;
+        }
         button.append(element("span", "", exported ? `Excel 第 ${question.excel_row} 行` : `${asArray(question.problems).length} 处说明`));
         button.addEventListener("click", () => renderQuestion(questionIndex));
         navigation.append(button);

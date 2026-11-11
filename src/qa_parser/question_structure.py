@@ -22,6 +22,7 @@ BLANK = re.compile(r'_{2,}|[＿﹍]{2,}|填空|填入|填写')
 HEADING = re.compile(r'^\s*(?:[一二三四五六七八九十]+[、．. ]\s*)?(判断题|判断正误|简答题|论述题|作文|证明题|多选题|多项选择题|不定项选择题|单选题|单项选择题|选择题|填空题)\s*(?:[（(][^（）()\n]*[）)])?[：:]?\s*$')
 UNSUPPORTED_HEADINGS = {'判断题', '判断正误', '简答题', '论述题', '作文', '证明题', '多选题', '多项选择题', '不定项选择题'}
 MULTI_CHOICE_LABEL = re.compile(r'^\s*[（(【](?:多选|多项选择|不定项选择)(?:题)?[）)】]')
+ANALYSIS_LIST_LEAD = re.compile(r'(?:步骤|方法|过程|如下|包括|说明|要点|原因|特点|注意事项)[^：:\n]{0,20}[：:]\s*$')
 
 
 def _issue(code, message, location=''):
@@ -197,6 +198,19 @@ def _shared(blocks, start, first_answer, starts, end):
                 answers = parsed
         else:
             parsed = _numbered_parts(body, numbers)
+            # A common analysis paragraph may precede numbered child analyses.
+            # Do not copy that entire section into every child. Explicit common
+            # step lists keep their established meaning instead.
+            numbered_start = re.search(r'(?:^|\n)\s*(\d{1,5})(?:[．、]|\.(?!\d))', body)
+            if (parsed is None and match.group(1) == '分析' and numbered_start
+                    and numbered_start[1] in numbers and numbered_start.start() > 0
+                    and not ANALYSIS_LIST_LEAD.search(body[:numbered_start.start()])):
+                parsed = _numbered_parts(body[numbered_start.start():].strip(), numbers)
+                if parsed:
+                    shared_analysis.append(match.group(0) + body[:numbered_start.start()].strip())
+                else:
+                    problems.append(_issue('group_analysis_binding', '公共分析后的编号解析无法唯一关联，未整段复制给子题', group_location))
+                    continue
             if parsed:
                 for n, content in parsed.items():
                     analyses[n].append(match.group(0) + content)
@@ -277,6 +291,59 @@ def _has_own_answer_at(blocks, start):
     return False
 
 
+def _has_response_body_at(blocks, start):
+    """Visible options/blank slots protect incomplete questions from absorption."""
+    body = []
+    for index in range(start, len(blocks)):
+        text = blocks[index]['text']
+        if index > start and (START.match(text) or _material_intro(blocks[index]) or HEADING.fullmatch(text)):
+            break
+        section = SECTION.search(text)
+        body.append(text[:section.start()] if section else text)
+        if section:
+            break
+    text = '\n'.join(body)
+    return (len(set(re.findall(r'(?<!\S)([A-H])[．.、]', text))) >= 2
+            or bool(re.search(r'_{2,}|[＿﹍]{2,}', text)))
+
+
+def _explanation_list_positions(blocks):
+    """Explicit analysis lead-in + ordered list, with no independent answers.
+
+    Do not relax duplicate-number validation: complete repeated questions and
+    unintroduced/malformed boundaries retain their existing review behavior.
+    """
+    positions = set()
+    section, previous = None, ''
+    for index, block in enumerate(blocks):
+        text = block['text']
+        markers = list(SECTION.finditer(text))
+        if markers:
+            section = markers[-1].group(1)
+        start = START.match(text)
+        if (start and start[1] == '1' and section in ('分析', '详解', '解析')
+                and ANALYSIS_LIST_LEAD.search(previous)):
+            candidates, expected = [], 1
+            for offset in range(index, len(blocks)):
+                value = blocks[offset]['text']
+                if SECTION.search(value) or HEADING.fullmatch(value) or _material_intro(blocks[offset]):
+                    break
+                number = START.match(value)
+                if number:
+                    if (int(number[1]) != expected or _has_own_answer_at(blocks, offset)
+                            or _has_response_body_at(blocks, offset)):
+                        break
+                    candidates.append(offset)
+                    expected += 1
+            if len(candidates) >= 2:
+                positions.update(candidates)
+        if start and index not in positions and not markers:
+            section = None
+        if text.strip():
+            previous = text
+    return positions
+
+
 def _numbered_blank_ranges(blocks):
     """Only split unnumbered slot groups proven by an exact numbered answer key."""
     ranges = []
@@ -312,6 +379,7 @@ def build_questions(blocks: list[dict], requested_kind: str, config: dict):
     questions, preamble, groups = [], [], []
     numbered = {start: (end, slots) for start, end, slots in _numbered_blank_ranges(blocks)}
     material_starts = _material_starts(blocks)
+    explanation_lists = _explanation_list_positions(blocks)
     cursor = 0
     normal = []
     def flush():
@@ -372,8 +440,11 @@ def build_questions(blocks: list[dict], requested_kind: str, config: dict):
                     # own response body and answer prove a new question.
                     new_question = m and (
                         (m.group(2) == starts[0][1].group(2) and m.group(1) not in numbers)
-                        or _new_question_at(blocks, end)
+                        or _has_own_answer_at(blocks, end)
+                        or (m.group(1) not in numbers and _has_response_body_at(blocks, end))
                     )
+                    if end in explanation_lists:
+                        new_question = False
                     if m and section_kind in ('点睛', '点精'):
                         new_question = _has_own_answer_at(blocks, end)
                     if end in material_starts or end in numbered or HEADING.fullmatch(blocks[end]['text']) or new_question:

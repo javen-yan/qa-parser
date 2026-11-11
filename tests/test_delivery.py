@@ -132,7 +132,7 @@ def test_failed_questions_preview_is_offline_and_only_failed_questions(tmp_path)
     result = run_batch([source], 'auto', tmp_path / 'work')
     with ZipFile(result['delivery']) as z:
         html = z.read('_说明/0001/未导出题目.html').decode()
-        assert '第 2 题' in html and '第 1 题' not in html
+        assert '原题号 2' in html and '原题号 1' not in html
         assert '未导出' in html and 'Content-Security-Policy' in html
         assert '<script src=' not in html and '<link' not in html
         assert not any(name.endswith(('.docx', '.bin', '.xml', '.json')) for name in z.namelist())

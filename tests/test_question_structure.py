@@ -258,3 +258,138 @@ def test_numbered_tip_lists_do_not_create_questions_or_hide_real_short_answers()
         assert [q['kind'] for q in qs] == ['choice', 'unsupported', 'choice']
         assert not qs[0]['issues'] and not qs[2]['issues']
         assert all('提示步骤' not in q['analysis'] for q in qs)
+
+
+def test_same_separator_analysis_steps_remain_with_their_question():
+    bs = blocks('1．前面的真实题？', OPTIONS, '【答案】B',
+                '83．设备操作题？', OPTIONS, '【答案】A', '【分析】操作步骤：',
+                '1．准备设备。', '2．调整方向。', '补充说明。', '3．观察结果。',
+                '【详解】A．操作正确。故选A。',
+                '84．下一道真实题？', OPTIONS, '【答案】C')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert [q['number'] for q in qs] == ['1', '83', '84']
+    assert all(not q['issues'] for q in qs)
+    assert all(part in qs[1]['analysis'] for part in ('1．准备设备', '2．调整方向', '3．观察结果', '补充说明', '故选A'))
+    assert '准备设备' not in qs[0]['analysis']
+    assert '下一道真实题' not in qs[1]['analysis']
+
+
+def test_analysis_leadin_does_not_hide_complete_repeated_questions():
+    bs = blocks('1．原来的题？', OPTIONS, '【答案】A', '【分析】操作步骤：',
+                '1．真正重复的题？', OPTIONS, '【答案】B',
+                '2．下一题？', OPTIONS, '【答案】C')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert [q['number'] for q in qs] == ['1', '1', '2']
+    assert all(any(i['code'] == 'duplicate_number' for i in q['issues']) for q in qs[:2])
+
+
+def test_shared_analysis_same_separator_steps_do_not_end_the_group():
+    bs = blocks('读图完成下面小题。', '83．问题一？', OPTIONS, '84．问题二？', OPTIONS,
+                '【答案】83．A  84．B', '【分析】实验步骤：',
+                '1．准备。', '2．观察。', '3．记录。',
+                '【详解】83．解释一。', '84．解释二。',
+                '85．新题？', OPTIONS, '【答案】C')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert [q['number'] for q in qs] == ['83', '84', '85']
+    assert all(not q['issues'] for q in qs)
+    assert all('3．记录' in q['analysis'] for q in qs[:2])
+    assert '记录' not in qs[2]['analysis']
+
+
+def test_numbered_lines_without_analysis_leadin_still_require_review():
+    bs = blocks('1．原题？', OPTIONS, '【答案】A', '【分析】解释。',
+                '1．没有答案的重复题。', '2．另一题。')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert [q['number'] for q in qs] == ['1', '1', '2']
+    assert any(i['code'] == 'duplicate_number' for i in qs[0]['issues'])
+
+
+def test_normal_question_separator_change_preserves_complete_and_incomplete_rows():
+    for separator in ('、', '.'):
+        bs = blocks('1．第一题？', OPTIONS, '【答案】A',
+                    f'2{separator}第二题？', OPTIONS, '【答案】B',
+                    '3．第三题缺答案？', OPTIONS)
+        qs, _, _ = build_questions(bs, 'auto', {})
+        assert [q['number'] for q in qs] == ['1', '2', '3']
+        assert all(not q['issues'] for q in qs[:2])
+        assert any(i['code'] == 'answer_marker_count' for i in qs[2]['issues'])
+
+
+def test_step_leadin_does_not_absorb_unanswered_choice_or_blank_questions():
+    for response in (OPTIONS, '请填写____和____。'):
+        bs = blocks('8．已答题？', OPTIONS, '【答案】A', '【解析】操作步骤：',
+                    '1．内容一？', response, '2．内容二？', response)
+        qs, _, _ = build_questions(bs, 'auto', {})
+        assert [q['number'] for q in qs] == ['8', '1', '2']
+        assert all(any(i['code'] == 'answer_marker_count' for i in q['issues']) for q in qs[1:])
+        assert '内容一' not in qs[0]['analysis']
+
+
+def test_shared_group_does_not_absorb_next_open_response_with_other_separator():
+    bs = blocks('读图完成下面小题。', '8．选择一？', OPTIONS, '9．选择二？', OPTIONS,
+                '【答案】8．A  9．B', '【解析】8．解释一。', '9．解释二。',
+                '10、解释原因？', '【答案】原因说明。')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert [q['number'] for q in qs] == ['8', '9', '10']
+    assert all(not q['issues'] for q in qs[:2])
+    assert qs[2]['answer'] == '原因说明。'
+    assert qs[2]['parent_id'] is None
+
+
+def test_unanswered_question_with_changed_separator_is_not_analysis():
+    bs = blocks('1．已答题？', OPTIONS, '【答案】A', '【解析】一般说明。',
+                '2、缺答案题？', OPTIONS)
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert [q['number'] for q in qs] == ['1', '2']
+    assert not qs[0]['issues']
+    assert any(i['code'] == 'answer_marker_count' for i in qs[1]['issues'])
+
+
+def test_analysis_option_references_are_not_mistaken_for_response_options():
+    bs = blocks('8．已答题？', OPTIONS, '【答案】D', '【解析】排除原因：',
+                '1．此处排除A、B、C。', '2．故选D。', '9．新题？', OPTIONS, '【答案】A')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert [q['number'] for q in qs] == ['8', '9']
+    assert all(not q['issues'] for q in qs)
+    assert '排除A、B、C' in qs[0]['analysis']
+
+
+def test_number_and_section_variations_keep_analysis_and_next_question_separate():
+    for separator in ('．', '、', '.'):
+        for section in ('分析', '详解', '解析'):
+            for leadin in ('操作步骤：', '原因如下:', '具体方法包括：'):
+                bs = blocks(f'8{separator}当前题？', OPTIONS, '【答案】A',
+                            f'【{section}】{leadin}', f'1{separator}第一项。',
+                            '', f'2{separator}第二项。', f'9{separator}下一题？', OPTIONS, '【答案】B')
+                qs, _, _ = build_questions(bs, 'auto', {})
+                assert [q['number'] for q in qs] == ['8', '9'], (separator,section,leadin)
+                assert all(not q['issues'] for q in qs)
+                assert '第一项' in qs[0]['analysis'] and '第二项' in qs[0]['analysis']
+                assert '下一题' not in qs[0]['analysis']
+
+
+def test_common_analysis_prefix_is_shared_but_numbered_tail_is_not():
+    bs = blocks('读图完成下面小题。', '97．问题甲？', OPTIONS, '98．问题乙？', OPTIONS,
+                '【答案】97．A  98．B', '【分析】共同的图示说明。',
+                '97．甲题的独立解析。', '故选A。', '98．乙题的独立解析。', '故选B。')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert all(not q['issues'] for q in qs)
+    assert all('共同的图示说明' in q['analysis'] for q in qs)
+    assert '甲题的独立解析' in qs[0]['analysis'] and '乙题的独立解析' not in qs[0]['analysis']
+    assert '乙题的独立解析' in qs[1]['analysis'] and '甲题的独立解析' not in qs[1]['analysis']
+
+
+def test_ambiguous_numbered_tail_after_common_analysis_remains_review():
+    bs = blocks('读图完成下面小题。', '97．问题甲？', OPTIONS, '98．问题乙？', OPTIONS,
+                '【答案】97．A  98．B', '【分析】共同说明。',
+                '97．甲解析。', '97．重复的甲解析。')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert all(any(i['code'] == 'group_analysis_binding' for i in q['issues']) for q in qs)
+
+
+def test_common_step_numbers_matching_child_numbers_are_not_child_analysis():
+    bs = blocks('读图完成下面小题。', '1．问题甲？', OPTIONS, '2．问题乙？', OPTIONS,
+                '【答案】1．A  2．B', '【分析】操作步骤：', '1．准备。', '2．观察。')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert all(not q['issues'] for q in qs)
+    assert all('准备' in q['analysis'] and '观察' in q['analysis'] for q in qs)

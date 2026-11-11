@@ -63,3 +63,5 @@
 @media(max-height:660px){.problems-dialog{padding:16px}.problems-dialog>.report-heading{margin-bottom:6px}.problems-notice{margin:6px 0 10px}.problems-layout{padding-top:12px}.problem-reading-hint{margin-bottom:12px}}
 @media(max-width:620px){.problems-layout{display:flex;flex-direction:column;gap:12px}.problem-navigation{border:0;padding:0;flex-shrink:0;max-height:76px}.problem-count{display:none}.problem-question-list{flex-direction:row;overflow-x:auto;overflow-y:hidden}.problem-question-button{white-space:nowrap}.problem-question-button>span{display:none}.problem-detail{flex:1}.problems-source-line{align-items:flex-start}.problems-source{font-size:12px}.report-subhead{display:block}}
 @media(prefers-reduced-motion:reduce){.problem-detail{scroll-behavior:auto}}
+
+.problem-source-excerpt{font-size:13px;line-height:1.7;overflow-wrap:anywhere;user-select:text;color:#4b5564}.problem-question-button .problem-question-excerpt{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5;margin:5px 0}

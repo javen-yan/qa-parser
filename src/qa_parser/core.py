@@ -202,16 +202,20 @@ def _questions(blocks: list[dict], kind: str, config: dict) -> tuple[list[dict],
     current = None
     numbering_separator = None
     in_tip = False
+    from .question_structure import _explanation_list_positions, _has_own_answer_at, _has_response_body_at
+    explanation_lists = _explanation_list_positions(blocks)
     for position, block in enumerate(blocks):
         text = block["text"]
-        start = QUESTION_START.match(text)
+        start = None if position in explanation_lists else QUESTION_START.match(text)
         if start and in_tip:
             from .question_structure import _has_own_answer_at
             if not _has_own_answer_at(blocks, position):
                 start = None
-        # Preserve explanation steps using a different numbering convention.
-        # The first top-level question establishes this document's convention.
-        if start and numbering_separator and start.group(2) != numbering_separator and not in_tip:
+        # Different separators alone do not disprove a real question. Preserve
+        # independent answers and incomplete questions with visible response slots.
+        if (start and numbering_separator and start.group(2) != numbering_separator and not in_tip
+                and not _has_own_answer_at(blocks, position)
+                and not _has_response_body_at(blocks, position)):
             start = None
         if start:
             in_tip = False

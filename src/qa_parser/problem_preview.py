@@ -170,6 +170,26 @@ class _Images:
         return result
 
 
+def _source_identities(questions):
+    """Disambiguate occurrences in source order, including rows outside this view."""
+    groups, identities = {}, {}
+    for q in questions:
+        groups.setdefault(q['number'], []).append(q)
+    for number, peers in groups.items():
+        for occurrence, q in enumerate(peers, 1):
+            excerpt = REF.sub('〔文档对象〕', q.get('stem', ''))
+            excerpt = re.sub(r'\s+', ' ', excerpt).strip()
+            excerpt = excerpt[:72] + ('…' if len(excerpt) > 72 else '')
+            label = f'原题号 {number}' + (f' · 第{occurrence}处' if len(peers) > 1 else '')
+            hint = f'原 Word 题干前的编号为“{number}”'
+            if len(peers) > 1:
+                hint += f'；同号共 {len(peers)} 处，这里是按原文顺序出现的第 {occurrence} 处'
+            identities[q['id']] = {'display_label': label, 'source_excerpt': excerpt,
+                'source_occurrence': occurrence, 'source_occurrences': len(peers),
+                'source_hint': hint + '。', 'source_location_label': _location_label(q.get('location', ''))}
+    return identities, groups
+
+
 def build_problem_preview(task_dir: Path, source_name: str = '') -> dict:
     """Return an explanation-only view of excluded questions; never mutate task."""
     from .core import load_task, validate_task, _split_fields
@@ -200,6 +220,7 @@ def build_problem_preview(task_dir: Path, source_name: str = '') -> dict:
             'impact': impact, 'field': 'question', 'field_label': _label('question'),
             'source': entry.get('location', ''), 'source_label': _location_label(entry.get('location', '')),
             'diagnostic': entry.get('message', '')})
+    identities, number_groups = _source_identities(report['questions'])
     for original in report['questions']:
         issues = deepcopy(original.get('issues', [])) + deepcopy(global_issues)
         if not issues:
@@ -212,6 +233,7 @@ def build_problem_preview(task_dir: Path, source_name: str = '') -> dict:
         loc_refs = {f.get('location'): fid for fid, f in formulas.items() if fid in original.get('formula_ids', [])}
         loc_refs.update({a.get('location'): aid for aid, a in assets.items() if aid in REF.findall(original['raw_text'])})
         question = {k: original[k] for k in ('id', 'number', 'location')}
+        question.update(identities[original['id']])
         question.update(kind=question_kind, kind_label={'choice': '选择题', 'blank': '填空 / 考点'}.get(question_kind, '待复核题型'), fields=[], problems=[],
                         location_label=_location_label(original['location']), preview_notes=[])
         refs_to_problems, fields_to_problems, seen = {}, {}, {}
@@ -230,6 +252,10 @@ def build_problem_preview(task_dir: Path, source_name: str = '') -> dict:
                     match = re.search(r'field is empty: (\w+)', entry.get('message', ''))
                     if match and match.group(1) in LABELS: key = match.group(1)
             cat, title, reason, impact = _description(entry, formula)
+            if code == 'duplicate_number':
+                title = f'原 Word 编号“{original["number"]}”识别到多处'
+                reason = '请对照以下题干开头，在 Word 中搜索定位；可能是原文重新编号，也可能是题目边界识别有误：\n'
+                reason += '\n'.join(identities[q['id']]['display_label'] + '：' + (identities[q['id']]['source_excerpt'] or '（未提取到题干）') + '（' + identities[q['id']]['source_location_label'] + '）' for q in number_groups[original['number']])
             signature = (fid, key, reason, entry.get('location', ''))
             if signature in seen:
                 prior = seen[signature]
@@ -358,16 +384,19 @@ def render_preview_html(preview: dict) -> str:
         '<title>未导出题目说明</title><style>body{font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#303743;background:#f7f7f5;margin:0;padding:24px}main{max-width:920px;margin:auto}article{background:white;border:1px solid #ddd;border-radius:16px;padding:24px;margin:22px 0}h1{font-size:25px}h2{font-size:21px}h3{font-size:16px;margin:18px 0 5px}.notice{color:#805a1c;background:#fff6e5;padding:14px;border-radius:10px}.content{white-space:pre-wrap;overflow-wrap:anywhere}.bad{background:#fff0eb;border-bottom:2px solid #c64a36;padding:3px}.problem{border-left:4px solid #c64a36;padding:10px 15px;margin:15px 0;background:#fff7f3}img{max-width:100%;max-height:420px;vertical-align:middle}figure{margin:12px 0}figcaption,small{font-size:12px;color:#666}code{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f3f8}details{margin-top:10px}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#3556ba}nav{display:flex;gap:12px;flex-wrap:wrap}@media(max-width:600px){body{padding:12px}article{padding:16px}}</style><main>',
         '<h1>未导出题目说明</h1><p>' + esc(preview.get('source_name', '')) + '</p>',
         '<p class="notice">' + esc(preview.get('notice', '')) + '</p>',
-        '<p>按源题号查看未导出原因。</p>']
+        '<p>原题号指 Word 题干前的编号；同号题按原文出现次序标注，并显示题干开头供搜索定位。</p>']
     for problem in preview.get('document_issues', []):
         chunks.append('<div class="problem"><strong>' + esc(problem['label']) + '</strong><p>' + esc(problem['reason']) + '</p></div>')
     questions = preview.get('questions', [])
     if not questions:
         chunks.append('<p>' + esc(preview.get('empty_message', '暂无逐题预览。')) + '</p>')
-    chunks.append('<nav>' + ''.join(f'<a href="#q-{index}">第 {esc(q["number"])} 题</a>' for index, q in enumerate(questions)) + '</nav>')
+    chunks.append('<nav>' + ''.join(f'<a href="#q-{index}">{esc(q.get("display_label", "原题号 " + q["number"]))}</a>' for index, q in enumerate(questions)) + '</nav>')
     for index, q in enumerate(questions):
         problem_numbers = {p['id']: n for n, p in enumerate(q['problems'], 1)}
-        chunks.append(f'<article id="q-{index}"><h2>第 {esc(q["number"])} 题 · {esc(q["kind_label"])}</h2><p class="notice">未导出 · 仅供问题定位</p>')
+        chunks.append(f'<article id="q-{index}"><h2>{esc(q.get("display_label", "原题号 " + q["number"]))} · {esc(q["kind_label"])}</h2><p class="notice">未导出 · 仅供问题定位</p>')
+        chunks.append('<p>' + esc(q.get('source_hint', '')) + '</p><p>' + esc(q.get('source_location_label', '')) + '</p>')
+        if q.get('source_excerpt'):
+            chunks.append('<p>在 Word 中搜索题干开头：' + esc(q['source_excerpt']) + '</p>')
         for field in q['fields']:
             chunks.append('<section><h3>' + esc(field['label']) + (' · 有问题' if field['problem_ids'] else '') + '</h3><div class="content">')
             for segment in field['segments']:
@@ -387,7 +416,7 @@ def render_preview_html(preview: dict) -> str:
             chunks.append('</div></section>')
         chunks.append('<h3>为什么没有导出</h3>')
         for number, problem in enumerate(q['problems'], 1):
-            chunks.append(f'<div class="problem" id="problem-{index}-{number}"><strong>问题 {number} · ' + esc(problem['field_label'] + '：' + problem['label']) + '</strong><p>' + esc(problem['impact']) + '</p><details><summary>展开诊断信息</summary><p>' + esc(problem['reason']) + '</p><small>' + esc(problem['source_label']) + '</small><pre>' + esc(problem['code'] + '\n' + problem['source'] + '\n' + problem['diagnostic']) + '</pre></details></div>')
+            chunks.append(f'<div class="problem" id="problem-{index}-{number}"><strong>问题 {number} · ' + esc(problem['field_label'] + '：' + problem['label']) + '</strong><p>' + esc(problem['reason']) + '</p><p>' + esc(problem['impact']) + '</p><details><summary>展开诊断信息</summary><small>' + esc(problem['source_label']) + '</small><pre>' + esc(problem['code'] + '\n' + problem['source'] + '\n' + problem['diagnostic']) + '</pre></details></div>')
         chunks.append('</article>')
     chunks.append('</main>')
     chunks.extend('<script>' + script + '</script>' for script in scripts)

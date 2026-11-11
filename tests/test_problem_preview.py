@@ -140,3 +140,39 @@ def test_standalone_html_escapes_document_text_and_only_embeds_trusted_math(tmp_
         assert "script-src 'sha256-" in output and 'data:font/woff2;base64,' in output
         assert "QaMathPreview.render" in output and "QaFormulaFont" in output
         assert "data:font/otf;base64," in output
+
+
+def test_duplicate_numbers_show_distinct_occurrences_and_source_text(tmp_path):
+    body = paragraph('1．变形虫是淡水中的单细胞生物。') + options()
+    body += paragraph('2．正常题。') + options()
+    body += paragraph('1．另一组题目，观察洋葱细胞。') + options()
+    task = tmp_path / 'task'
+    core.parse_document(docx(tmp_path / '4.docx', body), 'auto', task)
+    before = (task / 'task.json').read_bytes()
+    view = build_problem_preview(task)
+    questions = view['questions']
+    assert len(questions) == 2
+    assert [q['display_label'] for q in questions] == ['原题号 1 · 第1处', '原题号 1 · 第2处']
+    assert all(q['source_occurrences'] == 2 for q in questions)
+    assert questions[0]['source_excerpt'].startswith('变形虫')
+    assert questions[1]['source_excerpt'].startswith('另一组题目')
+    assert questions[0]['source_location_label'] != questions[1]['source_location_label']
+    for q in questions:
+        issue = next(p for p in q['problems'] if p['code'] == 'duplicate_number')
+        assert '变形虫' in issue['reason'] and '另一组题目' in issue['reason']
+        assert '边界识别有误' in issue['reason']
+    output = render_preview_html(view)
+    assert '原题号 1 · 第1处' in output and '原题号 1 · 第2处' in output
+    assert '在 Word 中搜索题干开头' in output
+    assert (task / 'task.json').read_bytes() == before
+
+
+def test_source_occurrences_are_counted_before_problem_filtering():
+    from qa_parser.problem_preview import _source_identities
+    rows = [{'id': 'a', 'number': '1', 'stem': '甲', 'location': '/w:p[1]'},
+            {'id': 'b', 'number': '1', 'stem': '乙', 'location': '/w:p[7]'},
+            {'id': 'c', 'number': '3', 'stem': '丙', 'location': '/w:p[12]'}]
+    identities, _ = _source_identities(rows)
+    assert identities['b']['display_label'] == '原题号 1 · 第2处'
+    assert identities['c']['display_label'] == '原题号 3'
+    assert identities['c']['source_occurrences'] == 1
