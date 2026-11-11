@@ -173,6 +173,12 @@ def main(argv=None):
     except Exception as error:
         if test_report:
             atomic_json(test_report, {'status': 'failed', 'error': type(error).__name__})
+        elif args and args[0] in ('--cli', '--desktop-smoke', '--runtime-smoke', '--diagnose-startup'):
+            detail = f'{type(error).__name__}: {error}\n'
+            if os.environ.get('QA_PARSER_CLI_LOG'):
+                Path(os.environ['QA_PARSER_CLI_LOG']).write_text(detail, encoding='utf-8')
+            elif sys.stderr is not None:
+                sys.stderr.write(detail)
         else:
             message('安装目录不可写，请将完整程序文件夹移到当前用户可写的位置后重试。'
                     if isinstance(error, PermissionError) else str(error), 0x10)

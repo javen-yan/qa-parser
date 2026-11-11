@@ -125,14 +125,23 @@ def file_lock(root, name, shared=False):
     """OS-held locks survive no crashes; never infer liveness from stale PID files."""
     path = Path(root) / ('.' + name + '.lock')
     with path.open('a+b') as stream:
-        if path.stat().st_size == 0:
-            stream.write(b'\0')
-            stream.flush()
         stream.seek(0)
         try:
             if os.name == 'nt':
                 import msvcrt
-                msvcrt.locking(stream.fileno(), msvcrt.LK_NBRLCK if shared else msvcrt.LK_NBLCK, 1)
+                import ctypes
+                from ctypes import wintypes as W
+                class OVERLAPPED(ctypes.Structure):
+                    _fields_ = [('Internal', ctypes.c_size_t), ('InternalHigh', ctypes.c_size_t),
+                                ('Offset', W.DWORD), ('OffsetHigh', W.DWORD), ('hEvent', W.HANDLE)]
+                kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+                kernel.LockFileEx.argtypes = [W.HANDLE, W.DWORD, W.DWORD, W.DWORD, W.DWORD, ctypes.POINTER(OVERLAPPED)]
+                kernel.UnlockFileEx.argtypes = [W.HANDLE, W.DWORD, W.DWORD, W.DWORD, ctypes.POINTER(OVERLAPPED)]
+                handle = W.HANDLE(msvcrt.get_osfhandle(stream.fileno()))
+                overlapped = OVERLAPPED()
+                # CRT LK_NBRLCK is exclusive too; LockFileEx supplies actual shared locks.
+                if not kernel.LockFileEx(handle, 1 | (0 if shared else 2), 0, 1, 0, ctypes.byref(overlapped)):
+                    raise ctypes.WinError(ctypes.get_last_error())
             else:
                 import fcntl
                 fcntl.flock(stream, (fcntl.LOCK_SH if shared else fcntl.LOCK_EX) | fcntl.LOCK_NB)
@@ -143,6 +152,7 @@ def file_lock(root, name, shared=False):
         finally:
             stream.seek(0)
             if os.name == 'nt':
-                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+                if not kernel.UnlockFileEx(handle, 0, 1, 0, ctypes.byref(overlapped)):
+                    raise ctypes.WinError(ctypes.get_last_error())
             else:
                 fcntl.flock(stream, fcntl.LOCK_UN)

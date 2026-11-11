@@ -175,3 +175,13 @@ def test_failed_upgrade_keeps_existing_rollback_history(installation):
     rollback(root, public)
     finish_start(root, '1.0.0', True)
     assert json.loads((root / 'install-state.json').read_text())['current'] == '1.0.0'
+
+
+def test_shared_activity_locks_coexist(tmp_path):
+    with file_lock(tmp_path, 'activity', shared=True):
+        with file_lock(tmp_path, 'activity', shared=True):
+            with pytest.raises(RuntimeError):
+                with file_lock(tmp_path, 'activity'):
+                    pytest.fail('update must not acquire an active installation')
+    with file_lock(tmp_path, 'activity'):
+        pass
