@@ -10,7 +10,7 @@ v0.3.2 优先将可靠公式输出为 `$$...$$` 文本，不因多个下标或�
 
 v0.3.4 修复题组解析编号说明被误拆成题目导致的重复题号误报；问题样本182道实际题目全部导出，公开回归420项通过。安装包发布状态以 Release 页面为准。
 
-v0.3.6 修复解析步骤误拆题、编号标点变化吞题和共享题组解析串题，并补充原题号的出现位置与题干提示。本地19份样本2,021个输出单元中1,923导出、98按既有表格策略跳过、0待复核；500项公开回归通过。参见[题目逻辑走查](docs/question-logic-review.md)。发布状态以 [v0.3.6 Release](https://github.com/javen-yan/qa-parser/releases/tag/v0.3.6) 为准，以下保留上一正式版下载直至新版本完成验证。
+v0.3.6 修复解析步骤误拆题、编号标点变化吞题和共享题组解析串题，并补充原题号的出现位置与题干提示。本地19份样本2,021个输出单元中1,923导出、98按既有表格策略跳过、0待复核；500项公开回归通过。参见[题目逻辑走查](docs/question-logic-review.md)。[v0.3.6 Release](https://github.com/javen-yan/qa-parser/releases/tag/v0.3.6) 已正式发布，三平台分发校验均通过。
 
 v0.3.5 修复共享参考图归属、清理点睛／点精、补充特殊作答与公式兼容。全部18份本地样本1,920题中导出1,822题、98题表格策略跳过、0题待复核；特殊题正常导出到独立工作表，既有选择／填空模板保持不变。详见[特殊题型解析与验证](docs/special-question-postprocessing.md)，发布状态以 [v0.3.5 Release](https://github.com/javen-yan/qa-parser/releases/tag/v0.3.5) 为准。
 
@@ -27,17 +27,17 @@ v0.3.5 修复共享参考图归属、清理点睛／点精、补充特殊作答�
 
 原图完整版只对审计通过的原始WMF进行回放，不猜测未知公式。4709个LaTeX公式的显示构造已检查，不能等同于所有公式逐项人工语义认证。两个Mac包为本机验证的独立应用，其他电脑、签名公证及客户安全策略仍需实际验证。
 
-## 正式下载与统一发布入口（v0.3.5）
+## 正式下载与统一发布入口（v0.3.6）
 
-[v0.3.5 正式版本页](https://github.com/javen-yan/qa-parser/releases/tag/v0.3.5) 已发布。三平台文件已上传 OSS 并完成匿名完整下载 SHA-256 校验：
+[v0.3.6 正式版本页](https://github.com/javen-yan/qa-parser/releases/tag/v0.3.6) 已发布。三平台文件已上传 OSS 并完成匿名完整下载 SHA-256 校验：
 
 | 平台 | 下载 |
 |---|---|
-| Windows x64 | [便携 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.5/windows-x64/qa-parser-v0.3.5-windows-x64-light.zip) |
-| Mac Apple Silicon（ARM64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.5/macos-arm64/qa-parser-v0.3.5-macos-arm64-light.zip) |
-| Mac Intel（x86_64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.5/macos-x86_64/qa-parser-v0.3.5-macos-x86_64-light.zip) |
+| Windows x64 | [便携 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.6/windows-x64/qa-parser-v0.3.6-windows-x64-light.zip) |
+| Mac Apple Silicon（ARM64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.6/macos-arm64/qa-parser-v0.3.6-macos-arm64-light.zip) |
+| Mac Intel（x86_64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.6/macos-x86_64/qa-parser-v0.3.6-macos-x86_64-light.zip) |
 
-[校验和](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.5/release/SHA256SUMS.txt) · [分发验证记录](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.5/release/delivery-record-windows-x64-macos-arm64-macos-x86_64.json)
+[校验和](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.6/release/SHA256SUMS.txt) · [分发验证记录](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.6/release/delivery-record-windows-x64-macos-arm64-macos-x86_64.json)
 
 完整解压对应 ZIP，Windows 进入“题库转换”文件夹双击 EXE，Mac 打开 `.app`。保留运行时和许可证。固定 WebView2、WMF 转换器、离线字体及 Python 运行时随 Windows 包分发，首次启动不下载开发环境；任务和缓存写入用户目录。
 
