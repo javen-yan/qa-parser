@@ -9,7 +9,7 @@
   "stable_release_blockers": [],
   "variant": "light",
   "optional_original_renderer": "Mac local full bundle only; not part of cloud basic candidate",
-  "approval_scope": "v1.0.0 formal publication approved after Native distribution validation run 42980990787 passed on 2026-11-11: Windows signed upgrade, startup rollback and unchanged runtime digest, plus macOS arm64 and x86_64 native regressions. Preserve macOS distribution and historical releases; customer Windows 11 acceptance, macOS Developer ID signing/notarization and target-system import remain separate disclosed limitations.",
+  "approval_scope": "v1.1.0 formal publication approved after Native distribution validation run 43006866819 passed on 2026-11-11 at commit adf6e5f: Windows signed upgrade, startup rollback and unchanged runtime digest, macOS arm64/x86_64 native regressions, signed macOS upgrade/startup/rollback, and in-app update handoff. Preserve historical releases; customer Windows 11 acceptance, macOS Developer ID signing/notarization and target-system import remain separate disclosed limitations.",
   "known_limitations": [
     "Customer Windows 11 portable acceptance is incomplete",
     "macOS Developer ID signing/notarization is not complete",

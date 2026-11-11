@@ -2,7 +2,7 @@
 
 离线读取 DOCX 中的选择题或填空题，生成 Excel、图片及可离线查看的题目预览。采用同一 Python 解析核心、CLI 和独立桌面窗口，客户无需安装 Python、Office、MathType、Node 或开发工具。
 
-**v1.0.0 已正式发布**：Windows 使用固定运行时与签名离线业务更新包，支持安装失败或启动失败回退；Mac 继续现有完整应用包。三平台原生验证及 OSS 匿名完整下载 SHA-256 校验均通过，下载见下文 v1.0.0 发布记录。使用与维护说明见[Windows 离线更新](docs/windows-offline-updates.md)。
+**v1.1.0 已正式发布**：Windows 和 macOS 都提供程序内“离线更新”入口；Windows 继续使用固定运行时与签名业务更新包，macOS 分发改为 app + 独立管理器 + 签名更新清单，支持离线更新和启动失败回退。三平台原生验证已通过，下载见下文 v1.1.0 发布记录。使用与维护说明见[Windows 离线更新](docs/windows-offline-updates.md)和[macOS 离线更新](docs/macos-offline-updates.md)。
 
 客户最终包统一按原 Word 文件名组织：`1.docx → 1.xlsx + 1/`，`物理练习.docx → 物理练习.xlsx + 物理练习/`。同名目录只放图片；说明与离线预览单独位于 `_说明/`。保留前导零，重名或跨平台路径冲突明确报错。桌面单份/批量、CLI `batch` 与 `run` 使用相同交付布局。内部诊断目录不是最终包。详见 [导出约定](docs/export-contract.md)。v0.3.1 包含此布局及混合公式输出更新；v0.3.0 不包含。
 
@@ -29,7 +29,23 @@ v0.3.5 修复共享参考图归属、清理点睛／点精、补充特殊作答�
 
 原图完整版只对审计通过的原始WMF进行回放，不猜测未知公式。4709个LaTeX公式的显示构造已检查，不能等同于所有公式逐项人工语义认证。两个Mac包为本机验证的独立应用，其他电脑、签名公证及客户安全策略仍需实际验证。
 
-## 正式下载与统一发布入口（v1.0.0）
+## 正式下载与统一发布入口（v1.1.0）
+
+[v1.1.0 正式版本页](https://github.com/javen-yan/qa-parser/releases/tag/v1.1.0) 已发布。三平台文件已上传 OSS 并完成匿名完整下载 SHA-256 校验：
+
+| 平台 | 下载 |
+|---|---|
+| Windows x64 | [便携 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v1.1.0/windows-x64/qa-parser-v1.1.0-windows-x64-light.zip) |
+| Mac Apple Silicon（ARM64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v1.1.0/macos-arm64/qa-parser-v1.1.0-macos-arm64-light.zip) |
+| Mac Intel（x86_64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v1.1.0/macos-x86_64/qa-parser-v1.1.0-macos-x86_64-light.zip) |
+
+Windows 附属文件：[业务更新包](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v1.1.0/windows-x64/qa-parser-windows-x64.qaupdate) · [运行时 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v1.1.0/windows-x64/qa-parser-windows-x64-runtime.zip)
+
+[校验和](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v1.1.0/release/SHA256SUMS.txt) · [分发验证记录](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v1.1.0/release/delivery-record-windows-x64-macos-arm64-macos-x86_64.json)
+
+完整解压对应 ZIP。Windows 双击“题库转换.exe”；macOS 双击“题库转换.app”。macOS 的“管理更新.app”、`install-state.json` 和更新清单必须保留。程序窗口内可直接点击“离线更新”，也可使用独立管理器；更新失败会自动恢复上一版本。
+
+## 历史正式下载（v1.0.0）
 
 [v1.0.0 正式版本页](https://github.com/javen-yan/qa-parser/releases/tag/v1.0.0) 已发布。三平台文件已上传 OSS 并完成匿名完整下载 SHA-256 校验：
 
@@ -47,7 +63,7 @@ Windows 附属文件：[业务更新包](https://maiya-reader.oss-cn-beijing.ali
 
 发布只使用 [Build and publish release](https://github.com/javen-yan/qa-parser/actions/workflows/release.yml) 一个入口：构建、三平台验证、OSS 上传、公网校验、Release 更新和镜像附件清理一次完成。失败后选择 `resume` 并填写已有 Release ID，复用已验证包；预算受限时可由一次性本机 runner 收尾，沿用 GitHub Secrets。旧版本仅按明确指定 ID 清理。原 Windows/Mac 单平台 workflow 仅供内部复用。详见[统一发布流程](docs/release-pipeline.md)。
 
-本次三平台包对应源码 `61b26adfbae1bfbf9e8246d17ace04e899b3d23a`；[发布运行 42987346174](https://github.com/javen-yan/qa-parser/actions/runs/42987346174) 的 prepare、Windows x64、Mac ARM64、Mac Intel 和 deliver 全部成功。Windows 原生验证通过签名升级、启动失败回退和运行时摘要不变检查；527 项公开回归通过、79 项明确排除。2026-11-11 UTC 正式发布，旧版本保留。客户 Windows 11 实机、Mac Developer ID 签名公证及目标 APP 导入/显示仍需验收，私有 Word 未上传。
+v1.0.0 三平台包对应源码 `61b26adfbae1bfbf9e8246d17ace04e899b3d23a`；[发布运行 42987346174](https://github.com/javen-yan/qa-parser/actions/runs/42987346174) 的 prepare、Windows x64、Mac ARM64、Mac Intel 和 deliver 全部成功。Windows 原生验证通过签名升级、启动失败回退和运行时摘要不变检查；527 项公开回归通过、79 项明确排除。2026-11-11 UTC 正式发布，旧版本保留。客户 Windows 11 实机、Mac Developer ID 签名公证及目标 APP 导入/显示仍需验收，私有 Word 未上传。
 
 macOS 下一版本起增加离线签名更新：分发 ZIP 将包含 `题库转换.app`、独立的 `管理更新.app` 和安装状态，支持签名校验、原子替换及上一版本回退，程序窗口内提供“离线更新”入口；v1.0.0 用户仍需手动替换一次完整包。详见 [macOS 离线签名更新](docs/macos-offline-updates.md)。
 
