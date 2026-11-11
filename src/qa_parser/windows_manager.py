@@ -174,5 +174,6 @@ def main(argv=None):
         if test_report:
             atomic_json(test_report, {'status': 'failed', 'error': type(error).__name__})
         else:
-            message(str(error), 0x10)
+            message('安装目录不可写，请将完整程序文件夹移到当前用户可写的位置后重试。'
+                    if isinstance(error, PermissionError) else str(error), 0x10)
         return 1

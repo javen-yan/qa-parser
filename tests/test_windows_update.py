@@ -167,3 +167,19 @@ def test_runtime_identity_independent_of_business_python_licenses(tmp_path):
     assert (tmp_path / 'second/app/v1.1.0/_internal/licenses/python/file').exists()
     assert not (tmp_path / 'second/app/v1.1.0/_internal/webview2').exists()
     assert not (tmp_path / 'second/runtime' / second['runtime_id'] / 'licenses/python').exists()
+
+
+def test_failed_upgrade_keeps_existing_rollback_history(installation):
+    root, archive, public, key, newer, rid = installation
+    stage_update(root, archive, public)
+    finish_start(root, '1.4.2', True)
+    builder().write_business_manifest(newer, '1.5.0', rid, key)
+    next_update = archive.with_name('next.qaupdate')
+    builder().archive_tree(newer, next_update)
+    stage_update(root, next_update, public)
+    finish_start(root, '1.5.0', False)
+    state = json.loads((root / 'install-state.json').read_text())
+    assert (state['current'], state['previous']) == ('1.4.2', '1.0.0')
+    rollback(root, public)
+    finish_start(root, '1.0.0', True)
+    assert json.loads((root / 'install-state.json').read_text())['current'] == '1.0.0'

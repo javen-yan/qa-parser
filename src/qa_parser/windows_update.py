@@ -45,7 +45,7 @@ def read_state(root):
     data = json.loads((root / 'install-state.json').read_text(encoding='utf-8'))
     if data.get('schema_version') != 1 or not VERSION.fullmatch(str(data.get('current', ''))):
         raise ValueError('Invalid installation state')
-    for name in ('previous', 'pending'):
+    for name in ('previous', 'pending', 'fallback_previous'):
         if data.get(name) is not None and not VERSION.fullmatch(str(data[name])):
             raise ValueError('Invalid installation state')
     return data
@@ -57,6 +57,7 @@ def recover(root):
     if state.get('pending'):
         # Interrupted before readiness acknowledgement: restore the old pointer.
         state['current'], state['pending'] = state['previous'], None
+        state['previous'] = state.pop('fallback_previous', None)
         if not state['current']:
             raise ValueError('Interrupted update has no recovery version')
         atomic_json(root / 'install-state.json', state)
@@ -111,7 +112,8 @@ def stage_update(root, archive, public_key):
                 stage.rename(destination)
             atomic_json(root / 'install-state.json', {
                 'schema_version': 1, 'current': manifest['version'],
-                'previous': state['current'], 'pending': manifest['version']})
+                'previous': state['current'], 'pending': manifest['version'],
+                'fallback_previous': state.get('previous')})
         except Exception:
             if stage.exists():
                 shutil.rmtree(stage)
@@ -126,7 +128,8 @@ def rollback(root, public_key):
         raise ValueError('没有可恢复的上一版本。')
     installed(root, previous, public_key)
     atomic_json(root / 'install-state.json', {
-        'schema_version': 1, 'current': previous, 'previous': state['current'], 'pending': previous})
+        'schema_version': 1, 'current': previous, 'previous': state['current'], 'pending': previous,
+        'fallback_previous': state.get('previous')})
 
 
 def finish_start(root, version, success):
@@ -134,5 +137,7 @@ def finish_start(root, version, success):
     if state.get('pending') == version:
         if not success:
             state['current'] = state['previous']
+            state['previous'] = state.get('fallback_previous')
+        state.pop('fallback_previous', None)
         state['pending'] = None
         atomic_json(root / 'install-state.json', state)
