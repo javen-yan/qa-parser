@@ -88,6 +88,43 @@ def service_stopper(process):
     return stop
 
 
+
+
+class UpdateBridge:
+    """Small JS API that hands an offline package to the external transaction owner."""
+
+    def __init__(self, root, platform, version):
+        self.root = Path(root)
+        self.platform = platform
+        self.version = version
+        self.window = None
+
+    def update_info(self):
+        return {'supported': True, 'platform': self.platform, 'version': self.version}
+
+    def choose_update(self):
+        import webview
+        if self.platform == 'macos' and not (self.root / '管理更新.app').is_dir():
+            return {'ok': False, 'error': '更新管理器缺失，请使用完整程序包。'}
+        pattern = '离线更新包 (*.qaupdate)' if self.platform == 'windows' else '离线更新包 (*.zip;*.qaupdate)'
+        paths = self.window.create_file_dialog(
+            webview.FileDialog.OPEN, allow_multiple=False, file_types=(pattern,))
+        if not paths:
+            return {'ok': False}
+        archive = Path(paths[0])
+        if archive.suffix.lower() not in ('.zip', '.qaupdate') or not archive.is_file():
+            return {'ok': False, 'error': '请选择 .zip 或 .qaupdate 更新包。'}
+        request = self.root / '.update-request.json'
+        from .windows_distribution import atomic_json
+        atomic_json(request, {'schema_version': 1, 'archive': str(archive),
+                              'platform': self.platform, 'version': self.version})
+        if self.platform == 'macos':
+            subprocess.Popen(['/usr/bin/open', '-n', '-a', str(self.root / '管理更新.app'),
+                              '--args', '--install-request', str(request)])
+        threading.Timer(0.8, self.window.destroy).start()
+        return {'ok': True}
+
+
 def _main(argv=None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     managed_nonce = None
@@ -109,6 +146,29 @@ def _main(argv=None) -> int:
             time.sleep(.05)
         if json.loads(gate.read_text()) != {'nonce': managed_nonce}:
             raise ValueError('Invalid launch gate')
+    bridge = None
+    if split and args[:1] not in (['--cli'], ['--desktop-smoke'], ['--runtime-smoke'], ['--diagnose-startup']):
+        bridge = UpdateBridge(split[0].parent.parent, 'windows', split[1]['version'])
+    elif sys.platform == 'darwin' and args[:1] not in (['--cli'], ['--desktop-smoke'], ['--runtime-smoke'], ['--diagnose-startup']):
+        try:
+            from .macos_distribution import read_state, root_for_app
+            mac_root = root_for_app()
+            if (mac_root / 'install-state.json').is_file():
+                bridge = UpdateBridge(mac_root, 'macos', read_state(mac_root)['current'])
+        except ValueError:
+            bridge = None
+    update_nonce = None
+    update_root = None
+    update_version = None
+    if args[:1] == ['--update-ready']:
+        import re
+        if len(args) != 2 or not re.fullmatch('[0-9a-f]{48}', args[1]):
+            raise ValueError('Invalid macOS update launch')
+        from .macos_distribution import read_state, root_for_app
+        update_nonce = args[1]
+        update_root = root_for_app()
+        update_version = read_state(update_root)['current']
+        args = []
     if args[:1] == ['--diagnose-startup']:
         from .startup_diagnostics import run
         root = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path.cwd()
@@ -186,7 +246,10 @@ def _main(argv=None) -> int:
         title = '题库转换' + (f" · 程序 {split[1]['version']} · 运行时 {split[1]['runtime_id'][:11]}" if split else '')
         window = webview.create_window(title, origin,
                                        width=min(1120, max_width), height=min(800, max_height),
-                                       min_size=(min(760, max_width), min(600, max_height)), text_select=True)
+                                       min_size=(min(760, max_width), min(600, max_height)), text_select=True,
+                                       **({'js_api': bridge} if bridge else {}))
+        if bridge:
+            bridge.window = window
         closed = threading.Event()
 
         def on_closed(*_):
@@ -208,6 +271,14 @@ def _main(argv=None) -> int:
                 atomic_json(managed_root / ('.ready-' + managed_nonce + '.json'),
                             {'nonce': managed_nonce, 'version': managed_version, 'ready': True})
             window.events.loaded += report_ready
+        if update_nonce:
+            def report_update_ready():
+                from .macos_distribution import atomic_json
+                if window.run_js("JSON.stringify(!!document.getElementById('start') && !!document.getElementById('file-input'))") != 'true':
+                    return
+                atomic_json(update_root / ('.ready-' + update_nonce + '.json'),
+                            {'nonce': update_nonce, 'version': update_version, 'ready': True})
+            window.events.loaded += report_update_ready
         smoke_passed = threading.Event()
         if smoke:
             def smoke_loaded():
@@ -263,6 +334,25 @@ def main(argv=None) -> int:
         if split:
             with file_lock(split[0].parent.parent, 'activity', shared=True):
                 return _main(args)
+        if sys.platform == 'darwin':
+            from .macos_distribution import file_lock as mac_lock, root_for_app
+            try:
+                root = root_for_app()
+            except ValueError:
+                root = None
+            if root is not None and (root / 'install-state.json').is_file():
+                try:
+                    with mac_lock(root, 'activity', shared=True):
+                        return _main(args)
+                except RuntimeError as error:
+                    from AppKit import NSAlert, NSApplication
+                    NSApplication.sharedApplication()
+                    alert = NSAlert.alloc().init()
+                    alert.setMessageText_('题库转换 · 离线更新')
+                    alert.setInformativeText_(str(error))
+                    alert.addButtonWithTitle_('好')
+                    alert.runModal()
+                    return 1
         return _main(args)
     except Exception as error:
         # CLI errors retain their existing contracts. Only an interactive

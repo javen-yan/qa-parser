@@ -62,14 +62,27 @@ runs:
       run: |
         export GITHUB_SHA="$(git rev-parse HEAD)"
         python scripts/composite_smoke.py --exe 'build/中文 macOS smoke/中文 解压/题库转换.app/Contents/MacOS/题库转换' --out 'build/复合 Mac 验证'
+    - name: Build split distribution and signed update package
+      env:
+        QA_ARCH: ${{ inputs.architecture }}
+      shell: bash
+      run: |
+        export GITHUB_SHA="$(git rev-parse HEAD)"
+        python scripts/build_macos_distribution.py --architecture "$QA_ARCH" --candidate "dist/qa-parser-macos-${QA_ARCH}-candidate.zip" --size dist/macos-distribution-size.json
+    - name: Native signed macOS upgrade and rollback
+      env:
+        QA_ARCH: ${{ inputs.architecture }}
+      shell: bash
+      run: |
+        export GITHUB_SHA="$(git rev-parse HEAD)"
+        python scripts/macos_update_smoke.py --candidate "dist/qa-parser-macos-${QA_ARCH}-candidate.zip" --out 'build/macOS update acceptance' --architecture "$QA_ARCH"
     - name: Prepare exact verified ZIP and checksum
       env:
         QA_ARCH: ${{ inputs.architecture }}
       shell: bash
       run: |
         export GITHUB_SHA="$(git rev-parse HEAD)"
-        cp 'build/中文 macOS smoke/portable-candidate.zip' "dist/qa-parser-macos-${QA_ARCH}-candidate.zip"
-        python scripts/candidate_metadata.py --archive "dist/qa-parser-macos-${QA_ARCH}-candidate.zip" --smoke 'build/中文 macOS smoke/smoke-report.json' --target "macos-${QA_ARCH}" --output dist/release-metadata.json --runtime-lock packaging/macos-runtime-lock.json --composite 'build/复合 Mac 验证/composite-report.json'
+        python scripts/candidate_metadata.py --archive "dist/qa-parser-macos-${QA_ARCH}-candidate.zip" --smoke 'build/中文 macOS smoke/smoke-report.json' --target "macos-${QA_ARCH}" --output dist/release-metadata.json --runtime-lock packaging/macos-runtime-lock.json --composite 'build/复合 Mac 验证/composite-report.json' --macos-update 'build/macOS update acceptance/update-validation.json'
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       if: success() && inputs.upload-artifacts == 'true'
       with:
@@ -77,6 +90,7 @@ runs:
         path: |
           dist/qa-parser-macos-${{ inputs.architecture }}-candidate.zip
           dist/release-metadata.json
+          dist/macos-distribution-size.json
         if-no-files-found: error
         retention-days: 14
         compression-level: 0
@@ -97,5 +111,7 @@ runs:
           build/中文 macOS smoke/*.log
           build/中文 macOS smoke/development/*.log
           build/中文 macOS smoke/frozen/*.log
+          build/macOS update acceptance/*.json
+          dist/macos-distribution-size.json
         if-no-files-found: warn
         retention-days: 14

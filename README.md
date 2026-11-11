@@ -49,6 +49,8 @@ Windows 附属文件：[业务更新包](https://maiya-reader.oss-cn-beijing.ali
 
 本次三平台包对应源码 `61b26adfbae1bfbf9e8246d17ace04e899b3d23a`；[发布运行 42987346174](https://github.com/javen-yan/qa-parser/actions/runs/42987346174) 的 prepare、Windows x64、Mac ARM64、Mac Intel 和 deliver 全部成功。Windows 原生验证通过签名升级、启动失败回退和运行时摘要不变检查；527 项公开回归通过、79 项明确排除。2026-11-11 UTC 正式发布，旧版本保留。客户 Windows 11 实机、Mac Developer ID 签名公证及目标 APP 导入/显示仍需验收，私有 Word 未上传。
 
+macOS 下一版本起增加离线签名更新：分发 ZIP 将包含 `题库转换.app`、独立的 `管理更新.app` 和安装状态，支持签名校验、原子替换及上一版本回退，程序窗口内提供“离线更新”入口；v1.0.0 用户仍需手动替换一次完整包。详见 [macOS 离线签名更新](docs/macos-offline-updates.md)。
+
 ## 历史正式下载（v0.3.6）
 
 [v0.3.6 正式版本页](https://github.com/javen-yan/qa-parser/releases/tag/v0.3.6) 保留历史下载。三平台文件已上传 OSS 并完成匿名完整下载 SHA-256 校验：

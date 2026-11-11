@@ -193,6 +193,9 @@ def upload_candidate(repo, release_id, owner, target, archive, metadata):
             data.get('commit') == owner['commit'] and data.get('zip_sha256') == sha(archive) and
             data.get('native_smoke_passed') and data.get('source_closure_complete') and data.get('variant') == 'light'):
         raise ValueError('Native candidate metadata gate failed')
+    from prepare_release import macos_update_required, validate_macos_distribution
+    if target.startswith('macos-') and macos_update_required(data.get('product_version')):
+        validate_macos_distribution(data, target)
     for path in extra_artifacts(archive.parent, data):
         upload(repo, release_id, owner, path)
     upload(repo, release_id, owner, archive)

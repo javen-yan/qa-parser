@@ -50,6 +50,25 @@ def extra_artifacts(folder, data, verify=True):
     return paths
 
 
+def macos_update_required(product_version):
+    parts = str(product_version).split('.')
+    if len(parts) < 2 or not all(part.isdigit() for part in parts[:2]):
+        return False
+    return tuple(map(int, parts[:2])) >= (1, 1)
+
+
+def validate_macos_distribution(data, target):
+    extra = data.get('macos_distribution')
+    if not extra or extra.get('schema_version') != 1:
+        raise ValueError('v1.1+ macOS requires signed update evidence')
+    validation = extra.get('validation', {})
+    if (validation.get('status') != 'passed' or validation.get('target') != target or
+            not all(validation.get(k) is True for k in ('native_macos', 'signed_upgrade', 'rollback')) or
+            validation.get('candidate_sha256') != data.get('zip_sha256') or
+            validation.get('candidate_bytes') != data.get('bytes')):
+        raise ValueError('macOS signed upgrade/rollback evidence incomplete')
+
+
 def validate_candidates(artifacts, commit):
     policy = json.loads((ROOT / 'packaging/release-policy.json').read_text())
     checked = []
@@ -70,6 +89,8 @@ def validate_candidates(artifacts, commit):
             if z.testzip() is not None:
                 raise ValueError(f'ZIP integrity failed: {target}')
         extra_artifacts(archive.parent, data)
+        if target.startswith('macos-') and macos_update_required(data.get('product_version')):
+            validate_macos_distribution(data, target)
         checked.append((target, archive, data))
     return checked
 
@@ -114,7 +135,7 @@ def assemble(artifacts, out, tag, commit):
 首次完整解压 ZIP，双击根目录题库转换.exe。管理更新.cmd 提供离线更新与恢复上一版本。
 .qaupdate 包仅更新业务程序；固定 WebView2、WMF 及对应源码归档由独立运行时版本管理。
 业务包包含 Python、界面和字体，不需要安装开发环境。运行时不兼容时使用新完整包。
-Mac ARM64/Intel 继续完整 .app 分发，资源布局与签名流程不变。
+Mac ARM64/Intel 继续完整 .app 分发；v1.1 起同时包含独立管理器和签名更新清单，可在程序内或管理器中离线更新及回退。
 
 ## 导出约定
 
@@ -123,7 +144,7 @@ Mac ARM64/Intel 继续完整 .app 分发，资源布局与签名流程不变。
 
 ## 验证范围
 
-发布必须通过三平台原生构建、窗口/转换检查与 Windows 签名更新、启动失败回退验证。
+发布必须通过三平台原生构建、窗口/转换检查、Windows 签名更新/启动回退，以及 macOS 签名升级和回退验证。
 私有题库不上传 CI，客户 Windows 11 实机、Mac 签名公证及目标系统导入仍需验收。
 以 release-manifest.json 中原生证据为准；不宣称任意文档 900/900 全覆盖。
 不要单独复制 EXE；请保留全部许可证及源码归档。程序离线运行，不自动下载依赖。

@@ -3,7 +3,7 @@ name: Native distribution validation
 on:
   workflow_dispatch:
   push:
-    branches: ['codex/windows-offline-v1']
+    branches: ['codex/windows-offline-v1', 'codex/macos-offline-update']
 
 env:
   PYTHONUTF8: '1'
@@ -64,6 +64,9 @@ jobs:
       cancel-in-progress: false
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    env:
+      QA_UPDATE_PRIVATE_KEY_HEX: ${{ secrets.QA_UPDATE_PRIVATE_KEY_HEX }}
+      QA_UPDATE_PUBLIC_KEY_HEX: ${{ vars.QA_UPDATE_PUBLIC_KEY_HEX }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:

@@ -29,6 +29,7 @@ def inputs(tmp_path):
             z.writestr('synthetic.txt', 'synthetic test only')
         (folder / 'release-metadata.json').write_text(json.dumps({
             'status': 'passed', 'target': target, 'commit': 'abc', 'zip_sha256': release.digest(archive),
+            'bytes': archive.stat().st_size,
             'variant': 'light', 'native_smoke_passed': True, 'source_closure_complete': True}))
     return incoming
 
@@ -126,3 +127,25 @@ def test_v1_windows_cannot_publish_old_monolithic_evidence(tmp_path):
     metadata.write_text(json.dumps(data))
     with pytest.raises(ValueError, match='v1 Windows requires'):
         release.validate_candidates(incoming, 'abc')
+
+
+def test_v1_1_macos_requires_signed_update_evidence(tmp_path):
+    incoming = inputs(tmp_path)
+    for target in ('macos-arm64', 'macos-x86_64'):
+        metadata = incoming / target / 'release-metadata.json'
+        data = json.loads(metadata.read_text())
+        data['product_version'] = '1.1.0'
+        metadata.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match='signed update evidence'):
+        release.validate_candidates(incoming, 'abc')
+    for target in ('macos-arm64', 'macos-x86_64'):
+        metadata = incoming / target / 'release-metadata.json'
+        archive = incoming / target / f'qa-parser-{target}-candidate.zip'
+        data = json.loads(metadata.read_text())
+        data['macos_distribution'] = {'schema_version': 1, 'validation': {
+            'status': 'passed', 'target': target, 'native_macos': True,
+            'signed_upgrade': True, 'rollback': True,
+            'candidate_sha256': data['zip_sha256'], 'candidate_bytes': archive.stat().st_size}}
+        metadata.write_text(json.dumps(data))
+    checked = release.validate_candidates(incoming, 'abc')
+    assert {target for target, _, _ in checked} == {'windows-x64', 'macos-arm64', 'macos-x86_64'}

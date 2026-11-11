@@ -68,3 +68,9 @@ v0.3.3 原始源码为 `012f57b88a9e5269d8ddb048fdc9ed0a55acd3e3`，生产 run `
 本次构建耗时约 9 分钟，交付阶段约 39 分钟。正常发布流程复用上传时的首次完整校验，收尾只核对公开对象 HEAD 的长度和 SHA-256，不再重复下载 507 MB Windows 包；恢复发布和独立清理仍做完整下载校验。上传仍是主要瓶颈，本次没有跳过校验。
 
 发布前 527 项公开回归通过、79 项明确排除。客户 Windows 11 实机、macOS Developer ID 签名公证及目标系统导入/显示仍未验收，私有 Word 未上传。
+
+## macOS 更新证据（v1.1 起）
+
+macOS 候选 ZIP 从 v1.1 起包含 `题库转换.app`、独立的 `管理更新.app`、`install-state.json` 以及根目录的签名更新清单。原生构建会额外执行一次真实签名升级、启动确认和回退，输出 `update-validation.json`。
+
+`candidate_metadata.py --macos-update` 要求证据状态为 `passed`，且 `native_macos`、`signed_upgrade`、`rollback` 均为真，并把候选 ZIP 的 SHA-256 与字节数写入 `release-metadata.json`。`prepare_release.py` 对 v1.1 及以后强制检查该证据；缺失时拒绝组装 Release。管理器自更新仍不在本轮范围，需要手动替换完整包。

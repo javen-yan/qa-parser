@@ -8,7 +8,8 @@ libwmf includes GPL/LGPL/GD components. FreeType uses FTL notices; libpng uses
 libpng-2.0; JPEG components retain IJG/Zlib/BSD notices. See the actual sources
 and individual notices for terms. No current Homebrew binaries are copied.
 
-CPython and Python package notices are under licenses/python. Noto CJK OFL and
+CPython and Python package notices are under licenses/python, including
+cryptography (Apache-2.0/BSD), cffi (MIT) and PyObjC (MIT). Noto CJK OFL and
 KaTeX MIT notices remain with their unmodified web assets. OS WebKit, expat, zlib
 and macOS frameworks are system prerequisites and are not copied into the app.
 The cloud package does not include the optional LibreOffice original-WMF engine.

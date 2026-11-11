@@ -12,6 +12,9 @@
 | libwmf / wmf2gd | 本机0.2.13 | 本地配方标注LGPL-2.0-or-later AND GPL-2.0-or-later AND GD | 外部小工具，当前仅开发机使用；其动态库、字体及最终客户再分发条件未验证。 |
 | formula-flow的mtef.py模块 | 固定提交9d5737aaa4514f2d12b5206a7357382fdfada2fb | MIT | 许可随 `qa_parser/vendor/mtef.LICENSE` 打包，修改和来源见公式组件文档。 |
 | Python运行时/标准库 | 本机3.13.3 | PSF及随附第三方许可 | 当前依赖开发机运行时；未来便携包如携带运行时须保留其完整许可。 |
+| cryptography | 46.0.3 | Apache-2.0 / BSD-3-Clause | Windows/macOS 离线更新包的 Ed25519 签名校验；保留 wheel 随附许可。 |
+| cffi | 2.0.0 | MIT | cryptography 运行时依赖；保留 wheel 随附许可。 |
+| PyObjC | 13.0 | MIT | macOS 原生窗口与独立更新管理器对话框；保留源码许可。 |
 
 没有引入上游的Microsoft Office XSL文件，没有集成GPL的mtef-rs。这里是工程依赖记录，不表示未来便携包的再分发审查或客户环境验收已完成。
 

@@ -125,6 +125,22 @@ def launch(root, public_key, args=(), probe=False):
         ready.unlink(missing_ok=True)
 
 
+def take_update_request(root):
+    path = Path(root) / '.update-request.json'
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    finally:
+        path.unlink(missing_ok=True)
+    if data.get('schema_version') != 1 or data.get('platform') != 'windows' or not data.get('archive'):
+        raise ValueError('无效的离线更新请求')
+    archive = Path(data['archive'])
+    if archive.suffix.lower() != '.qaupdate' or not archive.is_file():
+        raise ValueError('请选择 .qaupdate 离线更新包。')
+    return archive
+
+
 def main(argv=None):
     if sys.platform != 'win32':
         raise RuntimeError('Windows manager only')
@@ -161,15 +177,32 @@ def main(argv=None):
                     args = []
                 elif args and args[0] not in ('--cli', '--desktop-smoke', '--runtime-smoke', '--diagnose-startup'):
                     raise ValueError('Unknown manager arguments')
-            # Hold shared activity for the whole owned process tree, including between child startup/exit.
-            with file_lock(root, 'activity', shared=True):
+            while True:
+                # Hold shared activity for the whole owned process tree, including between child startup/exit.
+                with file_lock(root, 'activity', shared=True):
+                    try:
+                        code = launch(root, public_key, args, probe=bool(test_report))
+                    except Exception:
+                        state = read_state(root)
+                        if state.get('pending'):
+                            finish_start(root, state['current'], False)
+                        raise
                 try:
-                    return launch(root, public_key, args, probe=bool(test_report))
-                except Exception:
-                    state = read_state(root)
-                    if state.get('pending'):
-                        finish_start(root, state['current'], False)
-                    raise
+                    archive = take_update_request(root)
+                except Exception as error:
+                    message(f'更新未安装：{error}', 0x10)
+                    args = []
+                    test_report = None
+                    continue
+                if archive is None:
+                    return code
+                try:
+                    with file_lock(root, 'activity'):
+                        stage_update(root, archive, public_key)
+                except Exception as error:
+                    message(f'更新未安装：{error}', 0x10)
+                args = []
+                test_report = None
     except Exception as error:
         if test_report:
             atomic_json(test_report, {'status': 'failed', 'error': type(error).__name__})

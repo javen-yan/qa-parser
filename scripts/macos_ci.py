@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'packaging/macos-runtime-lock.json'
@@ -229,7 +230,10 @@ def main():
     plist_file = app / 'Contents/Info.plist'
     with plist_file.open('rb') as stream:
         plist = plistlib.load(stream)
+    version = tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['version']
     plist['CFBundleName'] = plist['CFBundleDisplayName'] = APP_NAME
+    plist['CFBundleShortVersionString'] = version
+    plist['CFBundleVersion'] = version
     plist['LSMinimumSystemVersion'] = '15.0'
     with plist_file.open('wb') as stream:
         plistlib.dump(plist, stream)

@@ -27,7 +27,7 @@ def signing_key():
         public = key.public_key().public_bytes_raw().hex()
     except ValueError:
         raise ValueError('Configure QA_UPDATE_PRIVATE_KEY_HEX (32-byte Ed25519 seed)') from None
-    pinned = (ROOT / 'packaging/windows-update-public-key.txt').read_text().strip()
+    pinned = (ROOT / 'packaging/update-public-key.txt').read_text().strip()
     if public != expected.lower() or public != pinned:
         raise ValueError('Signing key does not match configured QA_UPDATE_PUBLIC_KEY_HEX')
     return key

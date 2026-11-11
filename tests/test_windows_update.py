@@ -185,3 +185,20 @@ def test_shared_activity_locks_coexist(tmp_path):
                     pytest.fail('update must not acquire an active installation')
     with file_lock(tmp_path, 'activity'):
         pass
+
+
+def test_update_request_is_one_shot_and_requires_qaupdate(tmp_path):
+    from qa_parser.windows_manager import take_update_request
+    root = tmp_path / 'installed'
+    root.mkdir()
+    package = root / 'new.qaupdate'
+    package.write_bytes(b'package')
+    assert take_update_request(root) is None
+    (root / '.update-request.json').write_text(json.dumps({
+        'schema_version': 1, 'platform': 'windows', 'archive': str(package)}))
+    assert take_update_request(root) == package
+    assert not (root / '.update-request.json').exists()
+    (root / '.update-request.json').write_text(json.dumps({
+        'schema_version': 1, 'platform': 'macos', 'archive': str(package)}))
+    with pytest.raises(ValueError):
+        take_update_request(root)

@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 
-def write_metadata(archive, smoke, target, output, source_complete, startup=None, composite=None, windows_update=None):
+def write_metadata(archive, smoke, target, output, source_complete, startup=None, composite=None, windows_update=None, macos_update=None):
     report = json.loads(smoke.read_text(encoding='utf-8'))
     if report.get('status') != 'passed' or report.get('gui', {}).get('status') != 'passed':
         raise ValueError('Native CLI and GUI smoke must pass before candidate metadata')
@@ -54,6 +54,15 @@ def write_metadata(archive, smoke, target, output, source_complete, startup=None
                 checksum = hashlib.file_digest(stream, 'sha256').hexdigest()
             data['windows_distribution']['artifacts'].append({'filename': name, 'bytes': path.stat().st_size, 'sha256': checksum})
         extra_artifacts(archive.parent, data)
+    if macos_update is not None:
+        if not target.startswith('macos-'):
+            raise ValueError('macOS update evidence is macOS-only')
+        validation = json.loads(macos_update.read_text(encoding='utf-8'))
+        if (validation.get('status') != 'passed' or validation.get('target') != target or
+                not all(validation.get(k) is True for k in ('native_macos', 'signed_upgrade', 'rollback')) or
+                validation.get('candidate_sha256') != sha or validation.get('candidate_bytes') != archive.stat().st_size):
+            raise ValueError('macOS signed upgrade/rollback evidence is incomplete')
+        data['macos_distribution'] = {'schema_version': 1, 'validation': validation}
     if target == 'windows-x64':
         from prepare_release import extra_artifacts
         extra_artifacts(archive.parent, data)
@@ -70,10 +79,11 @@ if __name__ == '__main__':
     p.add_argument('--startup', type=Path)
     p.add_argument('--composite', type=Path)
     p.add_argument('--windows-update', type=Path)
+    p.add_argument('--macos-update', type=Path)
     a = p.parse_args()
     lock = json.loads(a.runtime_lock.read_text(encoding='utf-8'))
     if a.target == 'windows-x64':
         complete = not lock['wmf']['missing_sources']
     else:
         complete = lock.get('source_closure_complete') is True
-    write_metadata(a.archive, a.smoke, a.target, a.output, complete, a.startup, a.composite, a.windows_update)
+    write_metadata(a.archive, a.smoke, a.target, a.output, complete, a.startup, a.composite, a.windows_update, a.macos_update)

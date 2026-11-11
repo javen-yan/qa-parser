@@ -123,6 +123,7 @@
     $("clear").hidden = count === 0 || Boolean(batch);
     $("clear").disabled = locked;
     $("shutdown").disabled = locked;
+    $("update").disabled = locked;
     for (const id of ["add", "empty-add", "file-input", "choose-output", "modes"]) $(id).disabled = locked || Boolean(batch);
     $("add").hidden = Boolean(batch) || count === 0;
     $("start").hidden = finished;
@@ -534,6 +535,33 @@
     $("error").classList.add("closed-banner");
     document.querySelectorAll("button, input, fieldset").forEach((el) => { el.disabled = true; });
   }));
+  async function setupUpdate() {
+    if (!window.pywebview || !window.pywebview.api || $("update").dataset.ready) return;
+    try {
+      const info = await window.pywebview.api.update_info();
+      if (!info || !info.supported) return;
+      $("update").hidden = false;
+      $("update").dataset.ready = "1";
+      $("update").title = info.platform === "windows" ? "安装 Windows 离线更新包" : "安装 macOS 离线更新包";
+    } catch { /* browser preview without the native bridge */ }
+  }
+  window.addEventListener("pywebviewready", setupUpdate);
+  let updateAttempts = 0;
+  (function detectUpdate() {
+    setupUpdate();
+    if (!$("update").dataset.ready && updateAttempts++ < 20) setTimeout(detectUpdate, 250);
+  })();
+  $("update").addEventListener("click", async () => {
+    if (!window.pywebview?.api) return;
+    try {
+      const result = await window.pywebview.api.choose_update();
+      if (!result?.ok) { if (result?.error) showError(result.error); return; }
+      stopped = true;
+      window.clearInterval(pollTimer);
+      showError("正在关闭并安装更新，请稍候…程序会自动重新打开。");
+      document.querySelectorAll("button, input, fieldset").forEach((el) => { el.disabled = true; });
+    } catch { showError("无法启动更新，请使用完整程序文件夹中的管理更新入口。"); }
+  });
   $("open-diagnostics").addEventListener("click", () => openResult("diagnostics"));
   $("open-batch").addEventListener("click", () => openResult("batch"));
   $("modes").addEventListener("change", () => {
