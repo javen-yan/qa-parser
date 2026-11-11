@@ -35,3 +35,13 @@ v0.3.3 原始源码为 `012f57b88a9e5269d8ddb048fdc9ed0a55acd3e3`，生产 run `
 ## v0.3.3 收尾结果
 
 [运行 42581561779](https://github.com/javen-yan/qa-parser/actions/runs/42581561779) 已成功完成：三平台包及说明公开 SHA 校验通过，Release 438806506 为正式发布且镜像附件为零，指定旧 Release 记录已不在清单。旧源码 tags、OSS 历史对象及仓库私有状态保留；一次性本机 runner 已注销、临时目录已删除。原生生产 run 42574069235 的预算失败状态原样保留，发布依据是其中三个成功的原生任务及原始包摘要，不伪造整个原运行成功。
+
+## v0.3.5 发布结果
+
+2026-11-11 03:07 UTC，Release `441157129` 正式发布（非草稿、非预发布）。源码标签 `v0.3.5` 对应 `f047c62077f9fdf49dd7897de9ac2f4ad10d12a1`，发布运行 [42944224225](https://github.com/javen-yan/qa-parser/actions/runs/42944224225) 的 prepare、Windows x64、Mac ARM64、Mac Intel 和 deliver 全部成功。
+
+三平台安装包、说明、校验清单和分发记录已上传 OSS 并完成匿名完整下载 SHA-256 校验；GitHub 已镜像附件按既有流程清理，正式下载链接保留在 [v0.3.5 Release](https://github.com/javen-yan/qa-parser/releases/tag/v0.3.5)。旧 Release、源码 tag 与 OSS 对象保留。
+
+本地发布前485项公开回归通过；18份原始 Word 的1,920题导出1,822题，98题表格策略跳过，0题待复核。客户环境及新增特殊题型工作表的目标系统导入仍未验收。此次云端交付耗时主要为 Windows 大包到 OSS 的分片上传，未修改上传策略或绕过下载校验。
+
+本机证据保存在 `output/release-v0.3.5/release.json` 与 `output/release-v0.3.5/run.json`；这些运行证据不提交源码仓库。

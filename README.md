@@ -25,23 +25,23 @@ v0.3.5 修复共享参考图归属、清理点睛／点精、补充特殊作答�
 
 原图完整版只对审计通过的原始WMF进行回放，不猜测未知公式。4709个LaTeX公式的显示构造已检查，不能等同于所有公式逐项人工语义认证。两个Mac包为本机验证的独立应用，其他电脑、签名公证及客户安全策略仍需实际验证。
 
-## 历史正式下载与统一发布入口（v0.3.3）
+## 正式下载与统一发布入口（v0.3.5）
 
-[v0.3.3 正式版本页](https://github.com/javen-yan/qa-parser/releases/tag/v0.3.3) 已发布。三平台文件已上传 OSS 并完成匿名完整下载 SHA-256 校验：
+[v0.3.5 正式版本页](https://github.com/javen-yan/qa-parser/releases/tag/v0.3.5) 已发布。三平台文件已上传 OSS 并完成匿名完整下载 SHA-256 校验：
 
 | 平台 | 下载 |
 |---|---|
-| Windows x64 | [便携 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.3/windows-x64/qa-parser-v0.3.3-windows-x64-light.zip) |
-| Mac Apple Silicon（ARM64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.3/macos-arm64/qa-parser-v0.3.3-macos-arm64-light.zip) |
-| Mac Intel（x86_64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.3/macos-x86_64/qa-parser-v0.3.3-macos-x86_64-light.zip) |
+| Windows x64 | [便携 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.5/windows-x64/qa-parser-v0.3.5-windows-x64-light.zip) |
+| Mac Apple Silicon（ARM64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.5/macos-arm64/qa-parser-v0.3.5-macos-arm64-light.zip) |
+| Mac Intel（x86_64） | [应用 ZIP](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.5/macos-x86_64/qa-parser-v0.3.5-macos-x86_64-light.zip) |
 
-[校验和](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.3/release/SHA256SUMS.txt) · [分发验证记录](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.3/release/delivery-record-windows-x64-macos-arm64-macos-x86_64.json)
+[校验和](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.5/release/SHA256SUMS.txt) · [分发验证记录](https://maiya-reader.oss-cn-beijing.aliyuncs.com/qa-parser/releases/v0.3.5/release/delivery-record-windows-x64-macos-arm64-macos-x86_64.json)
 
 完整解压对应 ZIP，Windows 进入“题库转换”文件夹双击 EXE，Mac 打开 `.app`。保留运行时和许可证。固定 WebView2、WMF 转换器、离线字体及 Python 运行时随 Windows 包分发，首次启动不下载开发环境；任务和缓存写入用户目录。
 
 发布只使用 [Build and publish release](https://github.com/javen-yan/qa-parser/actions/workflows/release.yml) 一个入口：构建、三平台验证、OSS 上传、公网校验、Release 更新和镜像附件清理一次完成。失败后选择 `resume` 并填写已有 Release ID，复用已验证包；预算受限时可由一次性本机 runner 收尾，沿用 GitHub Secrets。旧版本仅按明确指定 ID 清理。原 Windows/Mac 单平台 workflow 仅供内部复用，旧 OSS 自动接续和独立清理入口已移除。详见[统一发布流程](docs/release-pipeline.md)。
 
-本次三平台包仍对应原始源码 `012f57b88a9e5269d8ddb048fdc9ed0a55acd3e3`；[统一收尾运行](https://github.com/javen-yan/qa-parser/actions/runs/42581561779) 复用既有原生验证包，没有重建产品。云端只提供轻量版，不能替代历史本地原图完整版结论。Windows 原生验证环境为 Server 2022 x64，客户 Windows 11、签名公证及目标 APP 导入/显示仍需验收；私有 Word 未上传。详见[平台矩阵](docs/platform-matrix.md)。
+本次三平台包对应源码 `f047c62077f9fdf49dd7897de9ac2f4ad10d12a1`；[发布运行](https://github.com/javen-yan/qa-parser/actions/runs/42944224225) 的三个原生构建及交付任务均成功。2026-11-11 UTC 正式发布，OSS 匿名完整下载 SHA-256 校验通过，旧版本保留。云端提供轻量版；客户 Windows 11、Mac 签名公证及目标 APP 导入/显示仍需验收，私有 Word 未上传。
 
 ## 输出约定
 
