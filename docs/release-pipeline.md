@@ -56,3 +56,15 @@ v0.3.3 原始源码为 `012f57b88a9e5269d8ddb048fdc9ed0a55acd3e3`，生产 run `
 日志显示Windows ZIP上传从05:43:50持续到06:10:52，约27分钟；随后完整下载SHA校验约13秒。主要瓶颈是上传而不是本地校验或公开下载。原流程收尾再次完整下载；按用户要求，main提交`4c61e88`改为同次发布复用第一次完整校验、收尾仅HEAD核对，恢复任务仍完整校验。该优化505项公开测试通过、79项明确排除；本次v0.3.6已启动的固定流程仍使用旧逻辑，下次发布生效，不改写版本标签。
 
 发布前产品回归500项通过；19份真实文档2,021个输出单元，1,923导出、98策略跳过、0待复核。客户系统导入与客户实机验收仍未完成。证据保存在`output/release-v0.3.6/`（源码仓库不提交运行证据）。
+
+## v1.0.0 发布结果
+
+2026-11-11 09:17 UTC，[v1.0.0](https://github.com/javen-yan/qa-parser/releases/tag/v1.0.0) 正式发布，Release ID `441411262`，非草稿、非预发布，GitHub 镜像附件已清理为零。标签源码为 `61b26adfbae1bfbf9e8246d17ace04e899b3d23a`；[运行 42987346174](https://github.com/javen-yan/qa-parser/actions/runs/42987346174) 的 prepare、Windows x64、Mac ARM64、Mac Intel 和 deliver 全部成功。
+
+发布前 `Native distribution validation` [运行 42980990787](https://github.com/javen-yan/qa-parser/actions/runs/42980990787) 已在 `b83c230` 通过三平台原生检查：Windows 签名升级、启动失败回退、运行时摘要不变，以及 Mac ARM64/Intel 原生构建与窗口检查。`packaging/release-policy.json` 据此批准稳定发布；批准提交 `61b26ad` 只修改发布政策和说明，正式包仍由 tag 源码重新原生构建。
+
+三平台安装包、Windows 业务更新包与运行时 ZIP 已上传 OSS，并完成匿名完整下载 SHA-256 校验。文件大小：Windows x64 `507,148,722` 字节，Mac ARM64 `45,634,556` 字节，Mac Intel `47,110,784` 字节。下载与校验清单位于 [v1.0.0 Release](https://github.com/javen-yan/qa-parser/releases/tag/v1.0.0)。
+
+本次构建耗时约 9 分钟，交付阶段约 39 分钟。正常发布流程复用上传时的首次完整校验，收尾只核对公开对象 HEAD 的长度和 SHA-256，不再重复下载 507 MB Windows 包；恢复发布和独立清理仍做完整下载校验。上传仍是主要瓶颈，本次没有跳过校验。
+
+发布前 527 项公开回归通过、79 项明确排除。客户 Windows 11 实机、macOS Developer ID 签名公证及目标系统导入/显示仍未验收，私有 Word 未上传。
