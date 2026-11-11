@@ -264,7 +264,9 @@ class _Reader:
 
         w:vertAlign positions the run, not a semantic formula base. We accept
         only contiguous alphanumeric groups with matching original brackets;
-        whitespace, prose and embedded objects are hard boundaries.
+        prose and embedded objects are hard boundaries. Spaces immediately inside
+        an opening bracket and trailing spaces in a group script remain source
+        layout; spaces between a closing bracket and its script still break binding.
         """
         output, pending = [], []
         pairs = {')': '(', '）': '（'}
@@ -300,7 +302,8 @@ class _Reader:
                 else:
                     script = token['script']
                     value = token['script_text']
-                    if not last or last in '(（' or not re.fullmatch(r'[A-Za-z0-9+-]+', value):
+                    checked_value = value.rstrip(' \t') if last in ')）' else value
+                    if not last or last in '(（' or not re.fullmatch(r'[A-Za-z0-9+-]+', checked_value):
                         valid = False
                     if script in scripts:
                         if parts and parts[-1].get('script') == script:
@@ -334,11 +337,17 @@ class _Reader:
                     item = {**token, 'text': chunk}
                     if re.fullmatch(r'[A-Za-z0-9()（）]+', chunk):
                         pending.append(item)
+                    elif (pending and pending[-1]['kind'] == 'text'
+                          and pending[-1]['text'].endswith(('(', '（'))
+                          and re.fullmatch(r'[ \t]+', chunk)):
+                        pending.append(item)
                     else:
                         flush()
                         output.append(item)
             elif token.get('origin') == 'word_vertical_alignment':
                 pending.append(token)
+                if token['script_text'] != token['script_text'].rstrip(' \t'):
+                    flush()
             else:
                 flush()
                 output.append(token)

@@ -82,6 +82,45 @@ def _vector_valid(node):
             and glyph.typeface == 22 and not glyph.embell)
 
 
+def is_legacy_condition_matrix(node):
+    """Visually verified legacy condition layout, NOT a generic 0x80 mask.
+
+    The source examples use (1,129,129) for a single condition over two rules
+    and an empty second row. Their WPS appearance was checked against the raw
+    tree. No interpretation of 129 for arbitrary matrices is established.
+    Keep every rule and the blank row; do not infer a reaction operator.
+    """
+    if not (isinstance(node, mtef.Mtx)
+            and getattr(node, 'source_alignment', ()) == (1, 129, 129)
+            and getattr(node, 'source_partitions', None) == b'\0\0'
+            and (node.rows, node.cols, len(node.cells)) == (2, 1, 2)
+            and all(isinstance(c, mtef.Line) and not c.null for c in node.cells)
+            and len(node.cells[0].items) == 1 and not node.cells[1].items):
+        return False
+    item = node.cells[0].items[0]
+    bars = 0
+    while isinstance(item, mtef.Tmpl):
+        if not (item.selector == 12 and item.variation in (0, 1)
+                and getattr(item, 'source_options', None) == 0
+                and len(item.slots) == 1 and isinstance(item.slots[0], mtef.Line)
+                and not item.slots[0].null and item.slots[0].items):
+            return False
+        bars += 1 + item.variation
+        if bars > 2:
+            return False
+        items = item.slots[0].items
+        if len(items) == 1 and isinstance(items[0], mtef.Tmpl):
+            item = items[0]
+            continue
+        # Source may express the second underline as a CHAR embellishment.
+        if not all(isinstance(c, mtef.Text) and c.s.strip() for c in items):
+            return False
+        if len(items) == 1 and items[0].embell == [29]:
+            return bars == 1
+        return bars == 2 and all(not c.embell for c in items)
+    return False
+
+
 def _array_valid(node):
     if isinstance(node, mtef.Mtx):
         align = getattr(node, 'source_alignment', ())
@@ -90,7 +129,8 @@ def _array_valid(node):
         return (1 <= node.rows <= 32 and 1 <= node.cols <= 16
                 and len(node.cells) == node.rows * node.cols
                 and all(isinstance(c, (mtef.Line, mtef.Pile)) for c in node.cells)
-                and align in ((1, 1, 1), (1, 2, 1), (1, 3, 1))
+                and (align in ((1, 1, 1), (1, 2, 1), (1, 3, 1))
+                     or is_legacy_condition_matrix(node))
                 and len(parts) == expected_parts and not any(parts))
     if isinstance(node, mtef.Pile):
         return (node.halign in (1, 2, 3) and node.valign == 1

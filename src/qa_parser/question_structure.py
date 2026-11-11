@@ -11,14 +11,17 @@ import re
 from .config import digest
 
 START = re.compile(r'^\s*(\d{1,5})([．、]|\.(?!\d))')
-SECTION = re.compile(r'【(答案|详解|解析|分析|点睛)】')
-INTRO = re.compile(r'(?:完成|回答)\s*(?:下面|下列|以下)?\s*(?:各小题|小题|各题|题目|第?\d{1,5}\s*[～~—–－-]\s*\d{1,5}\s*(?:小题|题))[。．.!！\s]*(?:【[^】]+】)?$')
+SECTION = re.compile(r'【(答案|详解|解析|分析|点睛|点精)】')
+INTRO = re.compile(r'(?:完成|回答)\s*(?:下面|下列|以下)?\s*(?:各小题|小题|各题|题目|(?:相关|有关)?问题|第?\d{1,5}\s*(?:[～~—–－\-、,，]|至|和|及)\s*\d{1,5}\s*(?:小题|题))[。｡．.!！:：\s]*(?:【[^】]+】)?$')
+INTRO_OBJECT = re.compile(r'⟦[IF]\d+⟧|［文档对象］')
 MATERIAL_LABEL = re.compile(r'^\s*(?:【材料[一二三四五六七八九十\d]*】|(?:材料[一二三四五六七八九十\d]*|阅读下列材料)\s*[:：])')
 SLOT = re.compile(r'_{2,}(\d{1,5})_{2,}')
 SUBPART = re.compile(r'(?:^|\n)\s*[（(]([1-9]\d*)[）)]')
 OPTION_LINE = re.compile(r'(?:^|\n|\t)\s*([A-H])[．.、]')
 BLANK = re.compile(r'_{2,}|[＿﹍]{2,}|填空|填入|填写')
-HEADING = re.compile(r'^\s*(?:[一二三四五六七八九十]+[、．. ]\s*)?(判断题|判断正误|简答题|论述题|作文|证明题|单选题|选择题|填空题)\s*$')
+HEADING = re.compile(r'^\s*(?:[一二三四五六七八九十]+[、．. ]\s*)?(判断题|判断正误|简答题|论述题|作文|证明题|多选题|多项选择题|不定项选择题|单选题|单项选择题|选择题|填空题)\s*(?:[（(][^（）()\n]*[）)])?[：:]?\s*$')
+UNSUPPORTED_HEADINGS = {'判断题', '判断正误', '简答题', '论述题', '作文', '证明题', '多选题', '多项选择题', '不定项选择题'}
+MULTI_CHOICE_LABEL = re.compile(r'^\s*[（(【](?:多选|多项选择|不定项选择)(?:题)?[）)】]')
 
 
 def _issue(code, message, location=''):
@@ -54,6 +57,8 @@ def _choice_fields(raw):
 def infer_kind(question: dict) -> tuple[str, list[str]]:
     """Evidence is per question; neither filename nor requested mode decides it."""
     from .core import _split_fields
+    if MULTI_CHOICE_LABEL.match(question['stem']):
+        return 'unsupported', ['题目明确标注多选或不定项选择，不能按单选题模板导出']
     fields, problems = _choice_fields(question['raw_text'])
     complete = not any(p['code'] == 'option_structure' for p in problems)
     stem = question['stem']
@@ -119,13 +124,18 @@ def _legacy(blocks):
         for index, title in headings:
             if index <= q['block_indices'][0]:
                 heading = title
-        unsupported = heading if heading in ('判断题', '判断正误', '简答题', '论述题', '作文', '证明题') else None
+        unsupported = heading if heading in UNSUPPORTED_HEADINGS else None
         _decorate(q, blocks, unsupported)
     return questions, preamble
 
 
 def _material_intro(b):
-    return not START.match(b['text']) and not SECTION.search(b['text']) and bool(INTRO.search(b['text']))
+    # Inline drawings follow the instruction in many Word paragraphs. They
+    # must not hide the boundary, either in classification's plain projection
+    # or the parser's asset/formula projection. Only normalize for detection:
+    # the original paragraph (including every object) remains shared material.
+    text = INTRO_OBJECT.sub('', b['text'])
+    return not START.match(text) and not SECTION.search(text) and bool(INTRO.search(text))
 
 
 def _material_starts(blocks):
@@ -176,6 +186,8 @@ def _shared(blocks, start, first_answer, starts, end):
     answer_sections = 0
     for i, match in enumerate(sections):
         body = tail[match.end():sections[i+1].start() if i+1 < len(sections) else len(tail)].strip()
+        if match.group(1) in ('点睛', '点精'):
+            continue
         if match.group(1) == '答案':
             answer_sections += 1
             parsed = _numbered_parts(body, numbers, inline=True)
@@ -188,7 +200,9 @@ def _shared(blocks, start, first_answer, starts, end):
             if parsed:
                 for n, content in parsed.items():
                     analyses[n].append(match.group(0) + content)
-            elif match.group(1) in ('点睛', '分析'):
+            elif match.group(1) == '分析' and START.match(body):
+                problems.append(_issue('group_analysis_binding', '编号分析无法与子题一一对应，未作为公共解析复制', group_location))
+            elif match.group(1) == '分析':
                 shared_analysis.append(match.group(0) + body)
             elif body:
                 problems.append(_issue('group_analysis_binding', '集中解析缺少可验证的子题编号，未猜测归属', group_location))
@@ -250,6 +264,19 @@ def _new_question_at(blocks, start):
     return False
 
 
+def _has_own_answer_at(blocks, start):
+    """A tip list number alone is not a question; retain even unsupported
+    response types when a separate answer proves a genuine next question."""
+    for index in range(start, len(blocks)):
+        text = blocks[index]['text']
+        if index > start and (START.match(text) or _material_intro(blocks[index]) or HEADING.fullmatch(text)):
+            return False
+        section = SECTION.search(text)
+        if section:
+            return section.group(1) == '答案'
+    return False
+
+
 def _numbered_blank_ranges(blocks):
     """Only split unnumbered slot groups proven by an exact numbered answer key."""
     ranges = []
@@ -266,7 +293,7 @@ def _numbered_blank_ranges(blocks):
             continue
         slots = [n for _, ns in candidates for n in ns]
         parsed = _numbered_parts(block['text'].split('【答案】', 1)[1].strip(), slots, inline=True)
-        if parsed is None or list(parsed) != slots or len(slots) != len(set(slots)):
+        if parsed is None or set(parsed) != set(slots) or len(slots) != len(set(slots)):
             continue
         # Previous answers may continue on explicitly numbered subpart lines.
         start = lower
@@ -294,6 +321,11 @@ def build_questions(blocks: list[dict], requested_kind: str, config: dict):
             preamble.extend(pre)
             normal.clear()
     while cursor < len(blocks):
+        if HEADING.fullmatch(blocks[cursor]['text']):
+            flush()
+            preamble.append(blocks[cursor])
+            cursor += 1
+            continue
         if cursor in numbered:
             flush()
             end, slots = numbered[cursor]
@@ -316,7 +348,7 @@ def build_questions(blocks: list[dict], requested_kind: str, config: dict):
         if potential:
             starts, first_answer = [], None
             for j in range(cursor, len(blocks)):
-                if j > cursor and (j in material_starts or j in numbered):
+                if j > cursor and (j in material_starts or j in numbered or HEADING.fullmatch(blocks[j]['text'])):
                     break
                 if '【答案】' in blocks[j]['text']:
                     first_answer = j
@@ -331,6 +363,7 @@ def build_questions(blocks: list[dict], requested_kind: str, config: dict):
             shared = first_answer is not None and starts and len(numbers) == len(set(numbers)) and (material_start and (len(starts) > 1 or numbered_key) or numbered_key and len(starts) > 1)
             if shared:
                 end = first_answer + 1
+                section_kind = list(SECTION.finditer(blocks[first_answer]['text']))[-1].group(1)
                 while end < len(blocks):
                     m = START.match(blocks[end]['text'])
                     # Explanation lists often restart at 1 with a different
@@ -341,8 +374,13 @@ def build_questions(blocks: list[dict], requested_kind: str, config: dict):
                         (m.group(2) == starts[0][1].group(2) and m.group(1) not in numbers)
                         or _new_question_at(blocks, end)
                     )
+                    if m and section_kind in ('点睛', '点精'):
+                        new_question = _has_own_answer_at(blocks, end)
                     if end in material_starts or end in numbered or HEADING.fullmatch(blocks[end]['text']) or new_question:
                         break
+                    sections = list(SECTION.finditer(blocks[end]['text']))
+                    if sections:
+                        section_kind = sections[-1].group(1)
                     end += 1
                 flush()
                 qs, group = _shared(blocks, cursor, first_answer, starts, end)
@@ -353,6 +391,20 @@ def build_questions(blocks: list[dict], requested_kind: str, config: dict):
         normal.append(block)
         cursor += 1
     flush()
+    # Section policy applies across flushes and shared groups, not just the
+    # legacy segment that happened to contain the heading.
+    headings = [(b['index'], HEADING.fullmatch(b['text']).group(1))
+                for b in blocks if HEADING.fullmatch(b['text'])]
+    for q in questions:
+        heading = next((title for index, title in reversed(headings)
+                        if index <= min(q['block_indices'])), None)
+        if heading in UNSUPPORTED_HEADINGS:
+            q['kind'] = q['dimensions']['response'] = 'unsupported'
+            message = f'正文分节标注为{heading}，当前不支持该作答方式'
+            q['classification_evidence'] = [message]
+            if not any(i['code'] == 'unsupported_kind' for i in q['issues']):
+                q['issues'].append(_issue('unsupported_kind', message, q['location']))
+    _guard_unbound_material(blocks, questions, groups, material_starts)
     counts = Counter(q['number'] for q in questions)
     for q in questions:
         if counts[q['number']] > 1 and not any(p['code'] == 'duplicate_number' for p in q['issues']):
@@ -361,3 +413,31 @@ def build_questions(blocks: list[dict], requested_kind: str, config: dict):
     return questions, preamble, {'version': 1, 'groups': groups,
         'original_question_count': len(questions) - children + len(groups),
         'subquestion_count': children, 'output_candidate_count': len(questions)}
+
+
+def _guard_unbound_material(blocks, questions, groups, starts):
+    """Do not silently export a group whose material scope was not established.
+
+    A directive inside a numbered prompt is ordinary question content. An
+    unowned directive or one swallowed by an earlier answer/analysis is not.
+    Until the next material/section boundary its possible consumers require
+    review; proximity alone must never choose which questions inherit it.
+    """
+    bound = {index for group in groups for index in group['material_block_indices']}
+    first_sections = {q['id']: next((b['index'] for b in blocks
+                                    if b['index'] in q['block_indices'] and SECTION.search(b['text'])), float('inf'))
+                      for q in questions}
+    for start in sorted(starts):
+        material = blocks[start]
+        if material['index'] in bound:
+            continue
+        owners = [q for q in questions if material['index'] in q['block_indices']]
+        if any(material['index'] < first_sections[q['id']] for q in owners):
+            continue
+        end = next((i for i in range(start + 1, len(blocks))
+                    if i in starts or HEADING.fullmatch(blocks[i]['text'])), len(blocks))
+        scope = {b['index'] for b in blocks[start:end]}
+        for q in questions:
+            if q in owners or scope.intersection(q['block_indices']):
+                q['issues'].append(_issue('group_material_binding',
+                    '共享材料未建立可靠的子题范围，需核对逐题答案或题组边界后再导出', material.get('location', '')))

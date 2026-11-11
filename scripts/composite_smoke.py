@@ -62,9 +62,23 @@ def fixtures(directory: Path):
     mixed += paragraph("【答案】(1)赤") + paragraph("(2)蓝")
     second = write_docx(directory / "02.docx", mixed)
     numbered = paragraph("请按连续编号补全：__76__、__77__、__78__。")
-    numbered += paragraph("【答案】76．一    77．二    78．三")
+    numbered += paragraph("【答案】78．三    76．一    77．二")
     third = write_docx(directory / "03.docx", numbered)
-    return [first, second, third], png
+    # Exercise boundaries after an independent answer AND a preceding group:
+    # inline pictures, generic instructions, and the halfwidth ideographic stop.
+    boundaries = paragraph("1．独立选择。") + paragraph("A．甲 B．乙 C．丙 D．丁")
+    boundaries += paragraph("【答案】A") + paragraph("【详解】仅属于第一题。")
+    for offset, instruction in enumerate(("完成下面小题。", "回答问题。", "完成下面小题｡", "回答下列问题：")):
+        first_number = 2 + offset * 2
+        intro = paragraph("读合成示意图，" + instruction)
+        boundaries += intro[:-6] + drawing + "</w:p>"
+        for number in (first_number, first_number + 1):
+            boundaries += paragraph(f"{number}．选择正确项。") + paragraph("A．甲 B．乙 C．丙 D．丁")
+        boundaries += paragraph(f"【答案】{first_number}．B    {first_number + 1}．D")
+        boundaries += paragraph(f"【解析】{first_number}．解释甲。") + paragraph(f"{first_number + 1}．解释乙。")
+        boundaries += paragraph(("【点睛】" if offset % 2 else "【点精】") + "本组共同解释。")
+    fourth = write_docx(directory / "04.docx", boundaries, png)
+    return [first, second, third, fourth], png
 
 
 def read_workbook(path: Path) -> dict[str, list[list[str]]]:
@@ -113,8 +127,8 @@ def _issue_semantics(issues):
 def validate_batch(root: Path, png: bytes):
     batch = _json(root / "batch-summary.json")
     require(batch["status"] == "partial_failure", "Unknown/table cases must remain visible in batch status")
-    require(batch["passed"] == 9 and batch["quarantined"] == 2, "Expected 9 passed and 2 explicitly omitted synthetic output units")
-    require(len(batch["files"]) == 3, "Batch did not finish all three input files")
+    require(batch["passed"] == 19 and batch["quarantined"] == 1, "Expected 19 passed and 1 explicitly omitted synthetic output units")
+    require(len(batch["files"]) == 4, "Batch did not finish all four input files")
     semantics = []
     for entry in batch["files"]:
         work = Path(entry["output"])
@@ -128,7 +142,7 @@ def validate_batch(root: Path, png: bytes):
         require(len(qmap) == len(questions), "Duplicate source numbers hidden in smoke fixture")
         workbook = read_workbook(work / "export/questions.xlsx")
         for sheet in report["sheets"]:
-            require(workbook[sheet["name"]][0] == HEADERS[sheet["kind"]], "Existing sheet column contract changed")
+            require(workbook[sheet["name"]][0] == ({**HEADERS, "response": ["ID", "原题号", "类型", "题目", "答案", "解析"]})[sheet["kind"]], "Existing sheet column contract changed")
             require(len(workbook[sheet["name"]]) == sheet["rows"] + 1, "Workbook row count differs from report")
         for mapping in report["rows"]:
             q = qmap[mapping["number"]]
@@ -138,6 +152,8 @@ def validate_batch(root: Path, png: bytes):
             require(mapping["id"] == q["id"] and mapping["parent_id"] == q.get("parent_id"), "Export row lost parent/child binding")
             if q["kind"] == "blank":
                 require(cell["考点"] == q["knowledge_point"] and bool(cell["考点"]), "Blank completed statement missing")
+            else:
+                require(cell["解析"] == q["analysis"], "Exported analysis differs from task")
         counts = summary["counts"]
         if entry["name"] == "01.docx":
             require(set(qmap) == {"1", "2"}, "Shared group was not split into its two children")
@@ -154,9 +170,9 @@ def validate_batch(root: Path, png: bytes):
             require(report["image_reference_map"] == {"参考aaa001.png)": "001.png"}, "Image alias contract changed")
             require((work / "export/images/001.png").read_bytes() == png, "Original shared PNG changed")
         elif entry["name"] == "02.docx":
-            require(set(workbook) == {"选择", "考点"}, "Mixed document must use both established templates")
+            require(set(workbook) == {"选择", "考点", "特殊题型"}, "Mixed document must use both established templates")
             require(counts == {"original_questions": 8, "subquestions": 0, "output_units": 8,
-                               "exported": 6, "policy_skipped": 1, "failed_or_review": 1}, "Mixed-document counts are wrong")
+                               "exported": 7, "policy_skipped": 1, "failed_or_review": 0}, "Mixed-document counts are wrong")
             for number, answer, knowledge in (
                 ("1", "非条件反射/简单反射", "本能行为又称非条件反射/简单反射。"),
                 ("2", "甲，乙", "列举甲，乙。"),
@@ -168,10 +184,10 @@ def validate_batch(root: Path, png: bytes):
             require(qmap["4"]["table_roles"][0]["role"] == "static_material", "Static table incorrectly skipped")
             require("示例\t7" in qmap["4"]["stem"] and "固定规则名称为常量。" in qmap["4"]["knowledge_point"], "Static material lost in export")
             omitted = {q["number"]: q for q in report["omitted_questions"]}
-            require(set(omitted) == {"5", "6"}, "Unexpected omissions or silent unsupported export")
-            require(omitted["5"]["policy_skipped"] and not omitted["6"]["policy_skipped"], "Policy skip and failure not distinguished")
+            require(set(omitted) == {"5"}, "Unexpected omissions or silent unsupported export")
+            require(omitted["5"]["policy_skipped"], "Policy skip and failure not distinguished")
             require(any(i["code"] == "table_interaction_skipped" for i in omitted["5"]["issues"]), "Interactive table lacks policy evidence")
-            require(any(i["code"] == "unsupported_kind" for i in omitted["6"]["issues"]), "Essay lacks unsupported-type reason")
+            require(qmap["6"]["kind"] == "response" and not qmap["6"]["issues"], "Complete response was not exported")
             require(qmap["8"]["answer"] == "赤,蓝" and "(1)填入赤" in qmap["8"]["knowledge_point"]
                     and "(2)填入蓝" in qmap["8"]["knowledge_point"], "Numbered subquestion bindings lost")
         elif entry["name"] == "03.docx":
@@ -179,6 +195,19 @@ def validate_batch(root: Path, png: bytes):
             q = questions[0]
             require(q["answer"] == "一,二,三" and q["knowledge_point"] == "请按连续编号补全：一、二、三。", "Numbered blank binding failed")
             require(counts["original_questions"] == counts["output_units"] == counts["exported"] == 1, "Numbered blank count is not one question")
+        elif entry["name"] == "04.docx":
+            require(len(questions) == 9 and len(task["structure"]["groups"]) == 4, "Shared figure boundary groups missing")
+            require(not qmap["1"]["asset_filenames"], "Shared figure leaked into preceding independent question")
+            for q in questions:
+                require("参考aaa" not in q["analysis"] and "读合成示意图" not in q["analysis"], "Next group's material leaked into analysis")
+                require("本组共同解释" not in q["analysis"], "Omitted tip section leaked into export")
+            for offset in range(4):
+                filename = f"{offset + 1:03d}.png"
+                for number, answer in ((2 + offset * 2, "B"), (3 + offset * 2, "D")):
+                    q = qmap[str(number)]
+                    require(q["asset_filenames"] == [filename] and f"参考aaa{filename})" in q["stem"], "Shared figure missing or attached to wrong child")
+                    require(q["answer"] == answer and q["material_refs"], "Child answer/material binding lost")
+                require((work / "export/images" / filename).read_bytes() == png, "Shared figure bytes changed")
         else:
             raise AssertionError("Unexpected smoke input")
         images = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((work / "export/images").iterdir())}
@@ -192,7 +221,7 @@ def validate_batch(root: Path, png: bytes):
                           "image_reference_map": report["image_reference_map"], "row_map": report["rows"]})
     with ZipFile(batch["delivery"]) as archive:
         require(archive.testzip() is None, "Delivery ZIP CRC failed")
-        require({"01.xlsx", "01/001.png", "02.xlsx", "03.xlsx"} <= set(archive.namelist()), "Numeric delivery names changed")
+        require({"01.xlsx", "01/001.png", "02.xlsx", "03.xlsx", "04.xlsx", "04/004.png"} <= set(archive.namelist()), "Numeric delivery names changed")
     return semantics
 
 

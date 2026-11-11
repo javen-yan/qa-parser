@@ -11,7 +11,7 @@ import tempfile
 from .config import config_digest, digest, load_config, validate_config
 
 QUESTION_START = re.compile(r"^\s*(\d{1,5})([．、]|\.(?!\d))")
-SECTION = re.compile(r"【(答案|详解|解析|分析|点睛)】")
+SECTION = re.compile(r"【(答案|详解|解析|分析|点睛|点精)】")
 OPTION = re.compile(r"(?<![A-Za-z])([A-H])[．.、]")
 REF = re.compile(r"⟦([FI]\d{6})⟧")
 
@@ -156,7 +156,7 @@ def _split_fields(raw: str, kind: str) -> tuple[dict, list[dict]]:
         if match.group(1) == "答案":
             answer_seen += 1
             answer_parts.append(content)
-        else:
+        elif match.group(1) not in ("点睛", "点精"):
             analysis_parts.append(match.group(0) + content)
     if answer_seen != 1:
         issues.append(issue("answer_marker_count", f"Expected one answer marker, found {answer_seen}"))
@@ -201,14 +201,20 @@ def _questions(blocks: list[dict], kind: str, config: dict) -> tuple[list[dict],
     questions, preamble = [], []
     current = None
     numbering_separator = None
-    for block in blocks:
+    in_tip = False
+    for position, block in enumerate(blocks):
         text = block["text"]
         start = QUESTION_START.match(text)
+        if start and in_tip:
+            from .question_structure import _has_own_answer_at
+            if not _has_own_answer_at(blocks, position):
+                start = None
         # Preserve explanation steps using a different numbering convention.
         # The first top-level question establishes this document's convention.
-        if start and numbering_separator and start.group(2) != numbering_separator:
+        if start and numbering_separator and start.group(2) != numbering_separator and not in_tip:
             start = None
         if start:
+            in_tip = False
             numbering_separator = start.group(2)
             current = {"number": start.group(1), "raw_parts": [text[start.end():]], "block_indices": [block["index"]], "location": block.get("location", ""), "issues": []}
             questions.append(current)
@@ -217,6 +223,9 @@ def _questions(blocks: list[dict], kind: str, config: dict) -> tuple[list[dict],
             current["block_indices"].append(block["index"])
         else:
             preamble.append(block)
+        sections = list(SECTION.finditer(text))
+        if sections:
+            in_tip = sections[-1].group(1) in ("点睛", "点精")
         if current:
             for token in block["tokens"]:
                 if token["kind"] == "unsupported":
@@ -239,7 +248,12 @@ def _questions(blocks: list[dict], kind: str, config: dict) -> tuple[list[dict],
 def _render_questions(questions: list[dict], formulas: list[dict], assets: list[dict], config: dict):
     fmap, amap = {f["id"]: f for f in formulas}, {a["id"]: a for a in assets}
     for q in questions:
-        refs = REF.findall(q["raw_text"])
+        # Deliberately omitted sections (点睛/点精) remain in source evidence,
+        # but must not contribute exported assets or formula-review failures.
+        active_text = '\n'.join([q.get(key, '') for key in ("stem", "answer", "analysis", "knowledge_point")]
+                                + list(q["options"].values()))
+        active_refs = set(REF.findall(active_text))
+        refs = [ref for ref in REF.findall(q["raw_text"]) if ref in active_refs]
         q["formula_ids"] = list(dict.fromkeys(r for r in refs if r.startswith("F")))
         image_ids = [fmap[r].get("fallback_asset_id") if r in fmap and fmap[r]["status"] == "image" else r for r in refs]
         q["asset_filenames"] = list(dict.fromkeys(amap[r]["filename"] for r in image_ids if r in amap))
@@ -261,6 +275,9 @@ def _render_questions(questions: list[dict], formulas: list[dict], assets: list[
         for key in ("stem", "answer", "analysis", "knowledge_point"):
             q[key] = render(q.get(key, ""))
         q["options"] = {key: render(value) for key, value in q["options"].items()}
+        q["analysis_status"] = "present" if SECTION.sub("", q["analysis"]).strip() else "absent"
+        if q["analysis_status"] == "absent":
+            q["analysis"] = "解析无"
         # Use formula/image CONTENT, not occurrence IDs, to keep difficulty stable.
         def canonical_ref(match):
             ref = match.group(1)
@@ -276,7 +293,7 @@ def _render_questions(questions: list[dict], formulas: list[dict], assets: list[
 def validate_task(task: dict, task_dir: Path, source: Path | None = None) -> dict:
     if task.get("schema_version") not in (1, 2):
         raise ValueError("Unsupported task schema_version")
-    if task.get("kind") not in ("choice", "blank", "mixed", "unknown"):
+    if task.get("kind") not in ("choice", "blank", "response", "mixed", "unknown"):
         raise ValueError("Unsupported question kind")
     config = task["config"]
     validate_config(config)
@@ -310,9 +327,9 @@ def validate_task(task: dict, task_dir: Path, source: Path | None = None) -> dic
     for original in task["questions"]:
         q = deepcopy(original)
         kind = q.get("kind", task["kind"])
-        if kind not in ("choice", "blank") and not q["issues"]:
+        if kind not in ("choice", "blank", "response") and not q["issues"]:
             q["issues"].append(issue("unsupported_kind", "Question type requires review", q["location"]))
-        for field in config["required_fields"].get(kind, []):
+        for field in (["stem", "answer"] if kind == "response" else config["required_fields"].get(kind, [])):
             if not q.get(field):
                 q["issues"].append(issue("required_field", f"Required field is empty: {field}", q["location"]))
         if kind == "choice":
@@ -432,7 +449,10 @@ def parse_document(source: Path, kind: str, out_dir: Path, config: dict | None =
                 enrich_blank_question(question, blocks, config, formulas=formulas)
             if kind != "auto" and question.get("kind") in ("choice", "blank") and question["kind"] != kind:
                 question["issues"].append(issue("kind_mismatch", "Selected kind conflicts with question structure", question["location"]))
-        found_kinds = {q.get("kind") for q in questions} & {"choice", "blank"}
+        from .special_questions import enrich_special_question
+        for question in questions:
+            enrich_special_question(question, blocks, config, formulas=formulas)
+        found_kinds = {q.get("kind") for q in questions} & {"choice", "blank", "response"}
         actual_kind = next(iter(found_kinds)) if len(found_kinds) == 1 else "mixed" if found_kinds else "unknown"
         from .mixed_formulas import apply_mixed_formulas
         apply_mixed_formulas(questions, formulas, assets, blocks, staging, config)
@@ -562,6 +582,16 @@ def run_document(source: Path, kind: str, out_dir: Path, config: dict | None = N
             except OSError as evidence_error:
                 summary["source_evidence_error"] = str(evidence_error)
         from .result import user_result, result_text, enrich_problem_reasons
+        if task and report and not report.get("document_issues") and summary["status"] != "failed":
+            try:
+                from .special_questions import write_special_queue
+                special = write_special_queue(task, report, staging / "task", staging)
+                if special:
+                    summary["special_questions"] = special
+                    summary["files"]["special_questions"] = special["path"]
+            except Exception as special_error:
+                # Postprocessing packaging must not discard sound main rows.
+                summary["special_questions_error"] = f"{type(special_error).__name__}: {special_error}"
         summary["user_result"] = user_result(summary, quarantine)
         if summary.get("passed") and (staging / "export/questions.xlsx").is_file():
             try:

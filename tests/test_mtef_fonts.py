@@ -96,3 +96,9 @@ def test_seven_original_objects_resolve_their_actual_font_definitions(filename, 
     assert all(is_plain_unicode_custom_font(n) for n in nodes)
     assert all(n.source_font['style'] == 0 for n in nodes)
     assert parser.r.d[parser.r.i:] == b'\0'
+
+@pytest.mark.parametrize('sign', ['+', '-', '='])
+def test_explicit_bold_operator_preserves_bold_style(sign):
+    assert plain_custom_font_latex(custom(sign, style=1, name=b'\xcb\xce\xcc\xe5')) == r'\boldsymbol{' + sign + '}'
+    assert plain_custom_font_latex(custom(sign, style=3)) is None
+    assert plain_custom_font_latex(custom(sign, style=1, name=b'Unknown')) is None

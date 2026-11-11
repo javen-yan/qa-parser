@@ -21,6 +21,7 @@ CHOICE_COLUMNS = [
     "ID", "类型", "困难程度", "题目", "选择项", "答案", "解析", "sid",
     "optionA", "optionB", "optionC", "optionD", "title", "questionType",
 ]
+RESPONSE_COLUMNS = ["ID", "原题号", "类型", "题目", "答案", "解析"]
 BLANK_COLUMNS = ["ID", "考点", "题目", "答案"]
 
 
@@ -53,7 +54,8 @@ def _row(question: dict, kind: str, config: dict, columns: list[str]) -> list[st
         raise ExportError("Question options must be an object")
     values = {
         "ID": "", "sid": "", "questionType": config.get("question_type", ""),
-        "类型": config.get("choice_type", "单选题"),
+        "原题号": question.get("number", ""),
+        "类型": question.get("special_response", {}).get("type", "特殊作答") if kind == "response" else config.get("choice_type", "单选题"),
         "困难程度": {"低": "易", "高": "难"}.get(question.get("difficulty", ""), question.get("difficulty", "")),
         "题目": question.get("stem", ""), "title": question.get("stem", ""),
         "选择项": "\n".join(f"{letter}．{_string(value)}" for letter, value in sorted(options.items())),
@@ -108,7 +110,7 @@ def _safe_resource(task_dir: Path, asset: dict) -> Path:
 
 def validate_export_question(question: dict, kind: str, config: dict) -> None:
     """Preflight one row so unattended callers can quarantine it individually."""
-    columns = config.get(f"{kind}_columns", CHOICE_COLUMNS if kind == "choice" else BLANK_COLUMNS)
+    columns = config.get(f"{kind}_columns", CHOICE_COLUMNS if kind == "choice" else RESPONSE_COLUMNS if kind == "response" else BLANK_COLUMNS)
     _row(question, kind, config, columns)
 
 
@@ -124,11 +126,11 @@ def export_task(task: dict, task_dir: Path, out_dir: Path, allow_partial: bool =
     if task.get("schema_version") not in (1, 2):
         raise ExportError("Unsupported task schema_version")
     kind = task.get("kind")
-    if kind not in ("choice", "blank", "mixed"):
+    if kind not in ("choice", "blank", "response", "mixed"):
         raise ExportError(f"Unsupported question kind: {kind}")
     config = task.get("config", {})
-    kinds = ["choice", "blank"] if kind == "mixed" else [kind]
-    columns_by_kind = {k: config.get(f"{k}_columns", CHOICE_COLUMNS if k == "choice" else BLANK_COLUMNS) for k in kinds}
+    kinds = ["choice", "blank", "response"] if kind == "mixed" else [kind]
+    columns_by_kind = {k: config.get(f"{k}_columns", CHOICE_COLUMNS if k == "choice" else RESPONSE_COLUMNS if k == "response" else BLANK_COLUMNS) for k in kinds}
     required = config.get("required_columns", [])
     if not isinstance(required, list) or not all(isinstance(c, str) for c in required):
         raise ExportError("required_columns must be an array of column names")
@@ -160,7 +162,7 @@ def export_task(task: dict, task_dir: Path, out_dir: Path, allow_partial: bool =
         selected = [q for q, row_kind in zip(included, row_kinds) if row_kind == k]
         if not selected:
             continue
-        sheet_name = "选择" if k == "choice" else "考点"
+        sheet_name = "选择" if k == "choice" else "特殊题型" if k == "response" else "考点"
         sheets.append({"name": sheet_name, "kind": k, "index": len(sheets) + 1,
                        "rows": len(selected), "columns": columns_by_kind[k]})
         for i, q in enumerate(selected, 2):

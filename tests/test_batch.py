@@ -72,7 +72,7 @@ def test_partial_file_is_not_success(tmp_path):
 
 def test_mixed_exports_supported_rows_and_unknown_remains_reported(tmp_path):
     mixed = docx(tmp_path / 'mixed.docx', choice() + ['2．填空____', '【答案】铁'])
-    unknown = docx(tmp_path / 'unknown.docx', ['1．解释这个现象。', '【答案】答案'])
+    unknown = docx(tmp_path / 'unknown.docx', ['1．解释这个现象。'])
     for mode in ['auto', 'choice', 'blank']:
         result = run_batch([mixed, unknown], mode, tmp_path / mode)
         assert result['status'] == 'partial_failure'

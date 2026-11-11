@@ -80,3 +80,14 @@ def test_actual_ten_source_groups_are_preserved(filename, expected):
             for location in group['source_locations']:
                 node, = reader.root.xpath(location.split(':', 1)[1], namespaces={k: v for k, v in reader.root.nsmap.items() if k})
                 assert node.text is not None
+
+@pytest.mark.parametrize('pieces,expected', [
+    ([('Ca(HCO', None), ('3', 'subscript'), (')', None), ('2   ', 'subscript')], 'Ca(HCO_{3})_{2   }'),
+    ([('Ca（ HCO', None), ('3', 'subscript'), ('）', None), ('2', 'subscript')], 'Ca( HCO_{3})_{2}'),
+])
+def test_explicit_bracket_group_with_source_spacing(tmp_path, pieces, expected):
+    source = docx(tmp_path, '<w:p>' + ''.join(run(*piece) for piece in pieces) + '</w:p>')
+    result = read_document(source)
+    assert not result['issues']
+    tokens = flattened(result)
+    assert len(tokens) == 1 and tokens[0]['data'].decode() == expected

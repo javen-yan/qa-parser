@@ -134,3 +134,11 @@ def test_letter_label_adjacent_to_long_underscore_run_is_interaction():
     q = run([row(0, [[{"kind": "formula", "id": "F000001"}], r"$$R_{a________}$$", "__name__"])])
     assert q["table_roles"][0]["role"] == "static_material"
     assert not q["issues"]
+
+
+def test_parenthesized_table_blanks_follow_the_same_policy_as_underscores():
+    q = run([row(0, ["材料", "名称（　 ）"])])
+    assert q["issues"][0]["code"] == "table_interaction_skipped"
+    q = run([row(0, ["材料", "（⟦F000001⟧）", r"（$$x_2$$）"])])
+    assert not q["issues"]
+    assert q["table_roles"][0]["role"] == "static_material"

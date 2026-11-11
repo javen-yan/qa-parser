@@ -23,6 +23,7 @@ REASONS = {
     "unknown_kind": "题型或答案归属不明确",
     "group_answer_binding": "题组答案无法按子题编号准确对应",
     "group_analysis_binding": "题组解析无法按子题编号准确对应",
+    "group_material_binding": "共享材料的题目范围无法确认，未按位置猜配",
     "blank_answer_alignment": "空位与答案无法一一对应，未猜测回填",
     "table_interaction_skipped": "按策略跳过表格内交互填空，原内容已保留",
     "table_role_unknown": "表格用途无法可靠判断",
@@ -49,6 +50,8 @@ def user_result(summary: dict, quarantine: dict) -> dict:
         [REASONS.get(i["code"], "文档无法可靠处理") for i in quarantine.get("document_issues", [])]
         + [reason for q in affected for reason in q["reasons"]]))
     return {"status": status, "message": message, "reasons": reasons,
+            "special_questions": summary.get("special_questions"),
+            "special_questions_error": summary.get("special_questions_error"),
             "counts": summary.get("counts", {}),
             "affected_questions": affected, "report": "result.txt",
             "diagnostics": "quarantine.json", "export": "export" if passed else None}
@@ -56,6 +59,10 @@ def user_result(summary: dict, quarantine: dict) -> dict:
 
 def result_text(result: dict, brief: bool = False) -> str:
     lines = [result["message"]]
+    if result.get("special_questions"):
+        lines.append(f"其中 {result['special_questions']['total']} 题已归入特殊题型后处理包，原题与答案已保留；尚未计为成功导出。")
+    if result.get("special_questions_error"):
+        lines.append("特殊题型后处理包整理失败，原始任务和诊断记录仍保留。")
     counts = result.get("counts", {})
     if counts:
         lines.append(f"原题/题组 {counts['original_questions']}；题组展开子题 {counts['subquestions']}；输出单元 {counts['output_units']}；已导出 {counts['exported']}；按策略跳过 {counts['policy_skipped']}；失败或待复核 {counts['failed_or_review']}。")

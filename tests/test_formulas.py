@@ -191,7 +191,7 @@ def test_mtef_matrix_subset_rejects_unknown_alignment_partitions_and_extra_cells
     reasons = []
     _audit_mtef(stack, reasons)
     assert not reasons
-    for attribute, value in [('source_alignment', (1, 129, 129)),
+    for attribute, value in [('source_alignment', (1, 130, 129)),
                              ('source_partitions', b'\1\0'), ('cols', 2)]:
         original = getattr(stack, attribute)
         setattr(stack, attribute, value)

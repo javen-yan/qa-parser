@@ -10,8 +10,8 @@ from collections import defaultdict
 import re
 
 
-_SECTION = re.compile(r"【(?:答案|详解|解析|分析|点睛)】")
-_BLANK = re.compile(r"(?<![A-Za-z0-9_])(?:_{2,}(?:\d+_{2,})?|[＿﹍]{2,})(?![A-Za-z_])|(?<=[A-Za-z])_{3,}(?![A-Za-z_])")
+_SECTION = re.compile(r"【(?:答案|详解|解析|分析|点睛|点精)】")
+_BLANK = re.compile(r"(?<![A-Za-z0-9_])(?:_{2,}(?:\d+_{2,})?|[＿﹍]{2,})(?![A-Za-z_])|(?<=[A-Za-z])_{3,}(?![A-Za-z_])|(?<=[（(])[ \t\u00a0\u3000]+(?=[）)])")
 _LABEL = re.compile(r"([①-⑳㉑-㉟㊱-㊿])\s*$")
 _OPTION = re.compile(r"^\s*[A-H][．.、]")
 _MATH = re.compile(r"\$\$[\s\S]*?\$\$|\\\([\s\S]*?\\\)|⟦[FI]\d{6}⟧")
@@ -49,7 +49,7 @@ def _slots(block: dict) -> list[dict]:
     # Preserve offsets, but never identify delimiters inside literal math.
     # Letter-labelled Word blanks such as a________ are valid interactions;
     # unlike a formula token, their underscore run is source paragraph text.
-    searchable = _MATH.sub(lambda m: " " * len(m.group()), text)
+    searchable = _MATH.sub(lambda m: "¤" * len(m.group()), text)
     found = []
     for match in _BLANK.finditer(searchable):
         label = _LABEL.search(searchable[:match.start()])

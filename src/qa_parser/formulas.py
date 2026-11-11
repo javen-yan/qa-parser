@@ -225,6 +225,8 @@ class _StrictMTEFParser(FontMetadataMixin, mtef.MTEFParser):
 
 def _is_condition_stack(node: Any) -> bool:
     """Only a two-row one-column bar/blank layout, not arbitrary matrices."""
+    if mtef_extensions.is_legacy_condition_matrix(node):
+        return True
     if isinstance(node, mtef.Mtx):
         if (node.rows, node.cols, len(node.cells)) != (2, 1, 2):
             return False

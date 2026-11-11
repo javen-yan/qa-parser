@@ -287,7 +287,7 @@ def build_problem_preview(task_dir: Path, source_name: str = '') -> dict:
             if cursor < len(text):
                 field['segments'].append({'type': 'text', 'text': text[cursor:], 'problem_ids': []})
             if not field['segments']:
-                field['segments'].append({'type': 'text', 'text': '（未提取到内容）', 'problem_ids': []})
+                field['segments'].append({'type': 'text', 'text': '解析无' if key == 'analysis' else '（未提取到内容）', 'problem_ids': []})
             question['fields'].append(field)
         for problem in question['problems']:
             if problem['field'] not in {f['key'] for f in question['fields']} and problem['field'] != 'question':

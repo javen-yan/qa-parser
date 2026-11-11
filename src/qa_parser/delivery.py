@@ -108,16 +108,29 @@ def publish_single_delivery(summary: dict, work: Path) -> dict:
     row = {**user, 'name': summary['source'], 'total': summary['total'],
            'passed': summary['passed'], 'quarantined': summary['quarantined'],
            'export': str(work / 'export') if user['export'] else None}
-    for field in ('export_preview', 'problem_preview'):
+    for field in ('export_preview', 'problem_preview', 'special_questions'):
         if summary.get(field):
             row[field] = str(work / summary[field]['path'])
             row[field + '_sha256'] = summary[field]['sha256']
+    if summary.get('special_questions'):
+        row['special_questions_total'] = summary['special_questions']['total']
     row['display_assets'] = [{**asset, 'path': str(work / asset['path'])}
                              for asset in summary.get('display_assets', [])]
     return publish_delivery({'message': user['message'], 'total_files': 1,
                              'passed': summary['passed'] or 0,
                              'quarantined': summary['quarantined'] or 0,
                              'files': [row]}, work / '最终结果')
+
+
+def _special_file(row):
+    if not row.get('special_questions'):
+        return None
+    source = Path(row['special_questions'])
+    if source.is_symlink() or not source.is_file() or source.name != '特殊题型待后处理.zip':
+        raise ValueError('Special-question package missing or unsafe')
+    if hashlib.sha256(source.read_bytes()).hexdigest() != row.get('special_questions_sha256'):
+        raise ValueError('Special-question package changed')
+    return source
 
 
 def publish_delivery(snapshot: dict, destination: Path) -> dict:
@@ -141,6 +154,8 @@ def publish_delivery(snapshot: dict, destination: Path) -> dict:
         for index, row in enumerate(snapshot['files'], 1):
             name = f'_说明/{index:04d}'
             report = _document_report(row)
+            if row.get('special_questions_total'):
+                report += f"\n特殊题型：{row['special_questions_total']} 题，见同目录“特殊题型待后处理.zip”；未计入成功题库。\n"
             reports.append((name, row, report))
             lines.extend([f'[{name}]', report])
         lines.extend(['请完整解压后使用。每份 Word 对应根目录同名 Excel 和同名图片文件夹；预览及说明位于 _说明/。',
@@ -159,6 +174,9 @@ def publish_delivery(snapshot: dict, destination: Path) -> dict:
                     preview_file = _preview_file(row)
                     if preview_file:
                         archive.write(preview_file, name + '/未导出题目.html')
+                    special_file = _special_file(row)
+                    if special_file:
+                        archive.write(special_file, name + '/特殊题型待后处理.zip')
                     if row.get('export'):
                         archive.writestr(stem + '/', b'')
                         for source, relative in _export_files(row):
@@ -201,10 +219,14 @@ def publish_delivery(snapshot: dict, destination: Path) -> dict:
             # Readable failed questions may still have a clearly labelled HTML.
             for name, row, report in reports:
                 preview_file = _preview_file(row)
-                if preview_file:
+                special_file = _special_file(row)
+                if preview_file or special_file:
                     folder = temporary / name
                     folder.mkdir(parents=True)
-                    shutil.copyfile(preview_file, folder / '未导出题目.html')
+                    if preview_file:
+                        shutil.copyfile(preview_file, folder / '未导出题目.html')
+                    if special_file:
+                        shutil.copyfile(special_file, folder / '特殊题型待后处理.zip')
                     (folder / '结果说明.txt').write_text(report, encoding='utf-8')
         # Reserve only after all payloads have been verified; never replace an
         # existing directory created by another process while packaging.

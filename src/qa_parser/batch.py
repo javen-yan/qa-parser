@@ -168,6 +168,10 @@ def run_batch(inputs: list[Path], mode: str, out: Path, progress=None, *,
             row["counts"] = summary.get("counts", {})
             _write_json(folder / "classification.json", classification)
             user = summary["user_result"]
+            if summary.get("special_questions"):
+                row["special_questions"] = str(folder / summary["special_questions"]["path"])
+                row["special_questions_sha256"] = summary["special_questions"]["sha256"]
+                row["special_questions_total"] = summary["special_questions"]["total"]
             if summary.get("export_preview"):
                 row["export_preview"] = str(folder / summary["export_preview"]["path"])
                 row["export_preview_sha256"] = summary["export_preview"]["sha256"]

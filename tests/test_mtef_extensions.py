@@ -182,3 +182,50 @@ def test_matrix_cell_can_be_a_structured_pile_without_losing_its_rows():
     assert not reasons
     assert mtef.to_latex(_adapt_mtef_tree(node)) == (
         r'\begin{array}{ll}x & \begin{array}{c}a \\ b\end{array}\end{array}')
+
+
+def legacy_condition(char_underline=False):
+    condition = text('Δ', 5) if char_underline else text('燃', 12)
+    if char_underline:
+        condition.embell = [29]
+    else:
+        condition = mtef.Tmpl(12, 0, 0, [mtef.Line([condition])])
+        condition.source_options = 0
+    bar = mtef.Tmpl(12, 0, 0, [mtef.Line([condition])])
+    bar.source_options = 0
+    matrix = mtef.Mtx(2, 1, [mtef.Line([bar]), mtef.Line([])])
+    matrix.source_alignment = (1, 129, 129)
+    matrix.source_partitions = b'\0\0'
+    return matrix
+
+
+@pytest.mark.parametrize('char_underline', [False, True])
+def test_legacy_condition_preserves_both_rules_condition_and_empty_row(char_underline):
+    from qa_parser.formulas import _audit_mtef, _adapt_mtef_tree
+    node = legacy_condition(char_underline)
+    reasons = []
+    _audit_mtef(node, reasons)
+    assert not reasons
+    latex = mtef.to_latex(_adapt_mtef_tree(node))
+    assert latex.count(r'\underline{') == 2
+    assert (r'\Delta' if char_underline else r'\text{燃}') in latex
+    assert latex.endswith(r' \\ {}\end{array}')
+
+
+@pytest.mark.parametrize('mutation', [
+    lambda n: setattr(n, 'source_alignment', (1, 130, 129)),
+    lambda n: setattr(n, 'source_partitions', b'\1\0'),
+    lambda n: setattr(n, 'cols', 2),
+    lambda n: n.cells[1].items.append(text('x')),
+    lambda n: setattr(n.cells[0].items[0], 'selector', 13),
+    lambda n: setattr(n.cells[0].items[0], 'source_options', 1),
+    lambda n: setattr(n.cells[0].items[0], 'variation', 1),
+    lambda n: setattr(n.cells[0].items[0].slots[0].items[0], 'embell', []),
+])
+def test_legacy_alignment_does_not_enable_arbitrary_or_altered_matrices(mutation):
+    from qa_parser.formulas import _audit_mtef
+    node = legacy_condition(True)
+    mutation(node)
+    reasons = []
+    _audit_mtef(node, reasons)
+    assert reasons

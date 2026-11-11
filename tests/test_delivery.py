@@ -36,6 +36,7 @@ def test_batch_package_mixed_names_partial_and_corrupt(tmp_path):
     with ZipFile(result['delivery']) as z:
         assert z.testzip() is None
         assert set(z.namelist()) == {
+            '_说明/0001/特殊题型待后处理.zip',
             '批次结果说明.txt', '_说明/0001/结果说明.txt', '同名.xlsx', '同名/', '_说明/0001/未导出题目.html',
             '_说明/0002/结果说明.txt', '另一份.xlsx', '另一份/', '_说明/0003/结果说明.txt',
             '_说明/0001/题目预览.html', '_说明/0002/题目预览.html',

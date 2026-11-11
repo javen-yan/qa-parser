@@ -68,6 +68,57 @@ def test_choice_field_ownership_and_raw_source(tmp_path):
     assert export_document(root, tmp_path / "export")["exported_questions"] == 2
 
 
+@pytest.mark.parametrize("mode", ["auto", "choice"])
+@pytest.mark.parametrize("instruction,inline", [
+    ("读图完成下面小题。", False),
+    ("读图完成下面小题。", True),
+    ("读图回答问题。", True),
+    ("据此回答下列问题：", False),
+    ("读图完成下面小题｡", False),
+    ("读图完成第2、3题。", True),
+    ("读图回答2至3题。", False),
+])
+def test_shared_figure_reaches_each_child_stem_and_export(tmp_path, mode, instruction, inline):
+    from io import BytesIO
+    from PIL import Image
+    from qa_parser.export_preview import _workbook_rows
+    from qa_parser.classification import classify_document
+
+    image = BytesIO()
+    Image.new("RGB", (8, 8), "blue").save(image, format="PNG")
+    material = p("如图为示意图，" + instruction)
+    drawing = '<w:r><w:drawing><a:blip r:embed="rId1"/></w:drawing></w:r>'
+    body = choice() + (material[:-6] + drawing + '</w:p>' if inline else material + '<w:p>' + drawing + '</w:p>')
+    for number in (2, 3):
+        body += p(f"{number}．图中哪项正确？") + p("A．甲 B．乙 C．丙 D．丁")
+    body += p("【答案】2．B    3．D") + p("【解析】2．第二题解释。") + p("3．第三题解释。")
+    body += choice("4", "后续独立题")
+    source = write_docx(tmp_path / "shared.docx", body, {"figure.png": image.getvalue()})
+    classified = classify_document(source)
+    assert classified["total"] == 4
+    assert classified["structure"]["groups"][0]["numbers"] == ["2", "3"]
+    report = parse_document(source, mode, tmp_path / "task")
+    assert report["total"] == report["passed"] == 4
+    first, second, third, last = report["questions"]
+    assert second["material_refs"] == classified["structure"]["groups"][0]["material_block_indices"]
+    assert second["asset_filenames"] == third["asset_filenames"]
+    filename, = second["asset_filenames"]
+    assert first["asset_filenames"] == last["asset_filenames"] == []
+    for q in (second, third):
+        assert filename in q["stem"] and filename not in q["analysis"]
+        assert "如图为示意图" in q["stem"]
+    assert "示意图" not in first["analysis"]
+    assert [second["answer"], third["answer"]] == ["B", "D"]
+    exported = export_document(tmp_path / "task", tmp_path / "export")
+    assert exported["exported_questions"] == 4
+    rows = [values for _, values in _workbook_rows(tmp_path / "export/questions.xlsx")][1:]
+    assert filename not in "\n".join(rows[0] + rows[3])
+    for row in rows[1:3]:
+        assert filename in row[3]  # 题干
+        assert filename not in row[6]  # 解析
+    assert (tmp_path / "export/images" / filename).read_bytes() == image.getvalue()
+
+
 def test_blank_keeps_multi_question_and_answers_in_one_row(tmp_path):
     body = p("一、填空题") + p("1．公共题干") + p("(1)第一空____") + p("(2)第二空____") + p("【答案】(1)铁") + p("(2)铜")
     source = write_docx(tmp_path / "blank.docx", body)
@@ -78,6 +129,48 @@ def test_blank_keeps_multi_question_and_answers_in_one_row(tmp_path):
     assert q["answer"] == "铁,铜"
     assert q["original_answer"] == "(1)铁\n(2)铜"
     assert q["knowledge_point"] == "公共题干\n(1)第一空铁\n(2)第二空铜"
+
+
+@pytest.mark.parametrize("tip", ["点睛", "点精"])
+def test_tips_and_their_resources_are_omitted_without_losing_next_material(tmp_path, tip):
+    from io import BytesIO
+    from PIL import Image
+    from qa_parser.export_preview import _workbook_rows
+
+    image = BytesIO()
+    Image.new("RGB", (8, 8), "blue").save(image, format="PNG")
+    drawing = '<w:p><w:r><w:drawing><a:blip r:embed="rId1"/></w:drawing></w:r></w:p>'
+    unresolved = '<w:p><m:oMath><m:r><m:t>unknown</m:t></m:r></m:oMath></w:p>'
+    body = choice() + p(f"【{tip}】应删除的独立题提示") + drawing + unresolved
+    body += p("读图完成下面小题。") + drawing
+    for number in (2, 3):
+        body += p(f"{number}．选择？") + p("A．甲 B．乙 C．丙 D．丁")
+    body += p("【答案】2．B  3．C") + p("【详解】2．保留详解二。") + p("3．保留详解三。")
+    body += p(f"【{tip}】应删除的题组提示") + drawing + unresolved + choice("4")
+    source = write_docx(tmp_path / "tips.docx", body, {"figure.png": image.getvalue()})
+    report = parse_document(source, "auto", tmp_path / "task")
+    assert report["passed"] == report["total"] == 4
+    first, second, third, last = report["questions"]
+    assert all(not q["formula_ids"] and "应删除" not in q["analysis"] for q in report["questions"])
+    assert "应删除的独立题提示" in first["raw_text"]  # Source evidence survives.
+    assert first["asset_filenames"] == last["asset_filenames"] == []
+    assert second["asset_filenames"] == third["asset_filenames"] == ["002.png"]
+    assert "保留详解二" in second["analysis"] and "保留详解三" in third["analysis"]
+    export_document(tmp_path / "task", tmp_path / "export")
+    assert [f.name for f in (tmp_path / "export/images").iterdir()] == ["002.png"]
+    assert all("应删除" not in "\n".join(values) for _, values in _workbook_rows(tmp_path / "export/questions.xlsx"))
+
+
+def test_unbound_material_is_quarantined_in_actual_partial_export(tmp_path):
+    body = choice() + p("读图完成下面小题。") + choice("2") + choice("3")
+    body += p("二、单选题") + choice("4", "确定独立的题目")
+    source = write_docx(tmp_path / "unbound.docx", body)
+    report = parse_document(source, "auto", tmp_path / "task")
+    assert report["total"] == 4 and report["passed"] == 1
+    assert all(any(i["code"] == "group_material_binding" for i in q["issues"]) for q in report["questions"][:3])
+    exported = export_document(tmp_path / "task", tmp_path / "export", allow_partial=True)
+    assert [row["number"] for row in exported["rows"]] == ["4"]
+    assert [q["number"] for q in exported["omitted_questions"]] == ["1", "2", "3"]
 
 
 def test_table_options_and_converted_formula_keep_ownership(tmp_path):

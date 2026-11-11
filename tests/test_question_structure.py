@@ -28,7 +28,7 @@ def test_shared_material_children_own_numbered_answers_and_analysis():
     assert '⟦I000001⟧' not in c['raw_text']
     assert '第一段解释' in a['analysis'] and '第二段解释' not in a['analysis']
     assert '第二段解释' in b['analysis'] and '第一段解释' not in b['analysis']
-    assert all('共同说明' in q['analysis'] for q in (a, b))
+    assert all('共同说明' not in q['analysis'] for q in (a, b))
     assert structure['original_question_count'] == 2
     assert structure['subquestion_count'] == 2
     assert structure['output_candidate_count'] == 3
@@ -183,7 +183,7 @@ def test_group_explanation_list_does_not_quarantine_earlier_questions():
     assert [q['answer'] for q in qs] == ['A', 'B', 'C', 'D']
     assert all(not q['issues'] for q in qs)
     for q in qs[1:3]:
-        assert all(text in q['analysis'] for text in ('1、影响一。', '2、影响二。', '3、影响三。'))
+        assert all(text not in q['analysis'] for text in ('1、影响一。', '2、影响二。', '3、影响三。'))
         assert {12, 13, 14} <= set(q['block_indices'])
     assert all('影响' not in q['analysis'] for q in (qs[0], qs[3]))
     assert len(st['groups']) == 2
@@ -198,3 +198,63 @@ def test_different_separator_with_own_answer_is_still_a_duplicate_question():
     assert [q['answer'] for q in qs] == ['A', 'B', 'C']
     assert all(any(i['code'] == 'duplicate_number' for i in q['issues']) for q in (qs[0], qs[2]))
     assert '独立题' not in qs[0]['analysis']
+
+
+def test_invalid_numbered_analysis_is_not_copied_to_all_children():
+    bs = blocks('完成下面小题。', '1．选择？', OPTIONS, '2．选择？', OPTIONS,
+                '【答案】1．A  2．B', '【分析】1．解释一。\n3．不属于本组。')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert all(any(i['code'] == 'group_analysis_binding' for i in q['issues']) for q in qs)
+    assert all('不属于本组' not in q['analysis'] for q in qs)
+
+
+def test_individual_answers_with_unbound_shared_material_require_review():
+    bs = blocks('1．独立题？', OPTIONS, '【答案】A', '【解析】独立解释。',
+                '读图完成下面小题。', '⟦I000001⟧',
+                '2．选择？', OPTIONS, '【答案】B', '3．选择？', OPTIONS, '【答案】C',
+                '二、单选题', '4．新分节独立题？', OPTIONS, '【答案】D')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert [q['number'] for q in qs] == ['1', '2', '3', '4']
+    assert all(any(i['code'] == 'group_material_binding' for i in q['issues']) for q in qs[:3])
+    assert not qs[3]['issues']
+    assert '二、单选题' not in qs[2]['raw_text']
+
+
+def test_instruction_inside_numbered_prompt_is_not_unbound_material():
+    bs = blocks('1．读材料，', '回答下列问题。', '(1)填写____。', '【答案】(1)甲')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert len(qs) == 1 and not qs[0]['issues']
+
+
+def test_section_policy_survives_shared_groups_and_resets_at_next_heading():
+    for heading in ('判断题', '多选题', '简答题', '多项选择题（共10分）'):
+        bs = blocks('一、' + heading, '完成下面小题。', '1．选择？', OPTIONS,
+                    '2．选择？', OPTIONS, '【答案】1．A  2．B',
+                    '【解析】1．解释一。', '2．解释二。',
+                    '3．选择？', OPTIONS, '【答案】C',
+                    '二、单选题', '4．选择？', OPTIONS, '【答案】D')
+        qs, _, _ = build_questions(bs, 'auto', {})
+        assert [q['kind'] for q in qs] == ['unsupported'] * 3 + ['choice']
+        assert all(any(i['code'] == 'unsupported_kind' for i in q['issues']) for q in qs[:3])
+        assert not qs[3]['issues']
+
+
+def test_explicit_multichoice_is_not_exported_as_single_even_with_one_answer():
+    bs = blocks('1．（多选）选择正确项？', OPTIONS, '【答案】A')
+    qs, _, _ = build_questions(bs, 'auto', {})
+    assert qs[0]['kind'] == 'unsupported'
+    assert any(i['code'] == 'unsupported_kind' for i in qs[0]['issues'])
+
+
+def test_numbered_tip_lists_do_not_create_questions_or_hide_real_short_answers():
+    for prefix in (
+        ['1．选择？', OPTIONS, '【答案】A'],
+        ['完成下面小题。', '1．选择？', OPTIONS, '【答案】1．A', '【解析】1．解释。'],
+    ):
+        qs, _, _ = build_questions(blocks(*prefix, '【点精】提示：', '1．提示步骤一。', '2．提示步骤二。',
+                                         '2．解释原因。', '【答案】原因说明。',
+                                         '3．选择？', OPTIONS, '【答案】D'), 'auto', {})
+        assert [q['number'] for q in qs] == ['1', '2', '3']
+        assert [q['kind'] for q in qs] == ['choice', 'unsupported', 'choice']
+        assert not qs[0]['issues'] and not qs[2]['issues']
+        assert all('提示步骤' not in q['analysis'] for q in qs)

@@ -77,14 +77,15 @@ def _labelled_answers(answer: str, labels: list[str]) -> dict[str, dict] | None:
     """Explicit numbered blanks such as __76__ have matching numbered answers."""
     if not labels or any(not label for label in labels) or len(labels) != len(set(labels)):
         return None
-    if all(label.isdigit() for label in labels):
-        pattern = re.compile(r"(?<!\S)(\d+)[．.、]")
+    if all(re.fullmatch(r"[0-9]+", label) for label in labels):
+        pattern = re.compile(r"(?<!\S)(\d+)(?:[．、]|\.(?!\d))")
     elif all(label in CIRCLED for label in labels):
         pattern = re.compile("([" + CIRCLED + "])")
     else:
         return None
     matches = list(pattern.finditer(answer))
-    if [m[1] for m in matches] != labels or answer[:matches[0].start()].strip():
+    found = [m[1] for m in matches]
+    if len(found) != len(set(found)) or set(found) != set(labels) or answer[:matches[0].start()].strip():
         return None
     result = {}
     for index, match in enumerate(matches):
@@ -169,6 +170,12 @@ def enrich_blank_question(q: dict, blocks: list[dict], config: dict, formulas=No
     masked = _masked(stem)
     parts = [{"label": m[1], "start": m.start(), "end": m.end()}
              for m in SUBPART.finditer(stem)]
+    answer_parts = list(ANSWER_PART.finditer(answer))
+    for index, marker in enumerate(answer_parts):
+        end = answer_parts[index + 1].start() if index + 1 < len(answer_parts) else len(answer)
+        if not answer[marker.end():end].strip():
+            _problem(q, "Explicit numbered answer is empty", subpart=marker[1])
+            return
     fmap = {f["id"]: f for f in formulas or []}
     for match in re.finditer(r"⟦(F\d{6})⟧", stem):
         # Only a line-leading equation can carry the subpart's heading.
@@ -210,6 +217,10 @@ def enrich_blank_question(q: dict, blocks: list[dict], config: dict, formulas=No
     if not answer.strip():
         _problem(q, "No answer to bind to blank slots", slot_count=len(slots))
         return
+    slot_labels = [(slot["subpart"], slot["label"]) for slot in slots if slot["label"]]
+    if len(slot_labels) != len(set(slot_labels)):
+        _problem(q, "Repeated slot labels within a subpart have no proven alias binding")
+        return
     answer, view_spans, derivations, view_error = _answer_view(answer, fmap, parts, config)
     if view_error:
         _problem(q, view_error)
@@ -219,7 +230,23 @@ def enrich_blank_question(q: dict, blocks: list[dict], config: dict, formulas=No
         q["answer_formula_derivations"] = derivations
     assignments, method = [], ""
     labelled = _labelled_answers(answer, [slot["label"] for slot in slots])
+    numeric_labels = [slot["label"] for slot in slots if slot["label"] and re.fullmatch(r"[0-9]+", slot["label"])]
+    if numeric_labels and not labelled and re.search(r"(?<!\S)\d+[．、]|(?<!\S)\d+\.(?!\d)", answer):
+        _problem(q, "Numbered blank answer labels do not uniquely match the explicit slots")
+        return
+    circled_labels = [slot["label"] for slot in slots if slot["label"] in CIRCLED] if all(slot["label"] for slot in slots) else []
+    if circled_labels and not labelled and re.search("[" + CIRCLED + r"]\s*[^\s" + CIRCLED + "]", answer):
+        _problem(q, "Circled answer labels with content do not uniquely match the explicit slots")
+        return
     answer_parts = list(ANSWER_PART.finditer(answer))
+    # Repeated section numbering is harmless with an unlabelled layout answer,
+    # or when an earlier heading contains no slots. It is ambiguous only when
+    # multiple answer-bearing parts compete for the same explicit answer label.
+    active_labels = [part["label"] for index, part in enumerate(parts)
+                     if BLANK.search(masked[part["end"]:parts[index + 1]["start"] if index + 1 < len(parts) else len(masked)])]
+    if answer_parts and len(set(active_labels)) != len(active_labels):
+        _problem(q, "Repeated answer-bearing subpart labels do not establish unique answer ownership")
+        return
     if labelled:
         assignments = [labelled[slot["label"]] for slot in slots]
         method = "explicit_slot_label"

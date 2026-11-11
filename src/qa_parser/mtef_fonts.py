@@ -81,6 +81,7 @@ def is_plain_unicode_custom_font(node: mtef.Text) -> bool:
 
     Vector style 7 remains rejected, as do unknown/user-alphabet fonts, bold or
     italic custom styles, PUA, absent MTCode, controls and inconsistent text.
+    Explicit bold +, - and = are accepted with their style preserved.
     A finite symbol set and CJK/ASCII cover the seven audited source objects.
     """
     if not isinstance(node, mtef.Text):
@@ -89,7 +90,11 @@ def is_plain_unicode_custom_font(node: mtef.Text) -> bool:
     if not isinstance(tf, int) or not (tf < 0 or tf in (9, 10)):
         return False
     binding = getattr(node, 'source_font', None)
-    if not isinstance(binding, dict) or binding.get('name') not in _PLAIN_FONTS or binding.get('style') != 0:
+    if not isinstance(binding, dict) or binding.get('name') not in _PLAIN_FONTS:
+        return False
+    # MTEF style bit 0 means bold. Limit this extension to arithmetic signs;
+    # bold alphabets may encode a different mathematical object.
+    if binding.get('style') != 0 and not (binding.get('style') == 1 and node.s in ('+', '-', '=')):
         return False
     cp = node.mtcode
     if not isinstance(cp, int) or not (0 < cp <= 0xFFFF) or node.s != chr(cp):
@@ -103,6 +108,8 @@ def plain_custom_font_latex(node: mtef.Text) -> str | None:
     """Render only the subset above, preserving plain Latin and CJK text."""
     if not is_plain_unicode_custom_font(node):
         return None
+    if node.source_font['style'] == 1:
+        return r'\boldsymbol{' + node.s + '}'
     if node.mtcode in _SYMBOL_LATEX:
         return _SYMBOL_LATEX[node.mtcode]
     escaped = ''.join(mtef.LATEX_SPECIAL.get(c, c) for c in node.s)

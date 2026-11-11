@@ -22,10 +22,10 @@ def test_source_composite_smoke_runs_real_cli_and_all_sheets(tmp_path):
     assert report["status"] == "passed"
     assert "frozen" not in report["runs"]
     files = report["runs"]["development"]["files"]
-    assert sum(f["counts"]["exported"] for f in files) == 9
+    assert sum(f["counts"]["exported"] for f in files) == 19
     assert sum(f["counts"]["policy_skipped"] for f in files) == 1
-    assert sum(f["counts"]["failed_or_review"] for f in files) == 1
-    assert files[1]["sheets"] == ["选择", "考点"]
+    assert sum(f["counts"]["failed_or_review"] for f in files) == 0
+    assert files[1]["sheets"] == ["选择", "考点", "特殊题型"]
 
 
 def test_workbook_reader_checks_every_sheet_and_sparse_columns(tmp_path):

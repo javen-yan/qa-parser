@@ -63,6 +63,44 @@ def test_answer_sections_out_of_order_still_bind_by_explicit_label():
     assert q["answer"] == "甲,乙"
 
 
+def test_numbered_slot_answers_bind_by_label_not_layout_order():
+    q = enrich(question("__1__和__2__", "2．乙    1．甲"))
+    assert not q["issues"]
+    assert q["knowledge_point"] == "甲和乙"
+    assert q["answer"] == "甲,乙"
+
+
+def test_numbered_slot_decimal_value_is_not_an_answer_heading():
+    q = enrich(question("距离__1__米", "1.5"))
+    assert not q["issues"]
+    assert q["answer"] == "1.5" and q["knowledge_point"] == "距离1.5米"
+
+
+def test_conflicting_numbered_labels_never_fall_back_to_positional_binding():
+    for stem, answer in (("__1__和__2__", "1．甲    3．乙"),
+                         ("__1__和__2__", "1．甲    1．乙"),
+                         ("__1__和__1__", "甲    乙"),
+                         ("(1)____\n(1)____", "(1)甲    乙")):
+        q = enrich(question(stem, answer))
+        assert q["issues"] and q["answer"] == answer
+        assert q["answer_bindings"] == [] and not q["knowledge_point"]
+
+
+def test_circled_slot_labels_cannot_silently_fall_back_to_layout():
+    q = enrich(question("①____②____", "②乙    ①甲"))
+    assert not q["issues"] and q["answer"] == "甲,乙"
+    for stem, answer in (("①____②____", "①甲    ③乙"), ("①____①____", "甲    乙")):
+        q = enrich(question(stem, answer))
+        assert q["issues"] and not q["knowledge_point"]
+
+
+def test_repeated_section_numbers_keep_unambiguous_layout_bindings():
+    q = enrich(question("(1)已有说明。\n(1)____\n(2)____", "(1)甲\n(2)乙"))
+    assert not q["issues"] and q["answer"] == "甲,乙"
+    q = enrich(question("材料一\n(1)____\n材料二\n(1)____", "甲    乙"))
+    assert not q["issues"] and q["answer"] == "甲,乙"
+
+
 def test_missing_or_extra_answer_sections_require_review():
     for answer in ("(1)甲", "(1)甲\n(1)乙", "(1)甲\n(3)乙"):
         q = enrich(question("(1)____。\n(2)____。", answer))
