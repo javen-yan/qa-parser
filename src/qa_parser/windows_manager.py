@@ -132,7 +132,7 @@ def main(argv=None):
     from qa_update_key import PUBLIC_KEY_HEX  # generated at build time, not loaded from installation data
     public_key = bytes.fromhex(PUBLIC_KEY_HEX)
     args = list(sys.argv[1:] if argv is None else argv)
-    test_report = Path(args[2]) if len(args) == 3 and args[0] == '--test-update' else None
+    test_report = Path(args[2]).resolve() if len(args) == 3 and args[0] == '--test-update' else None
     try:
         with file_lock(root, 'operation'):
             with file_lock(root, 'activity'):

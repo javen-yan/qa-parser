@@ -20,6 +20,8 @@ def main():
     a = p.parse_args()
     if sys.platform != 'win32':
         p.error('Native Windows is required')
+    a.root = a.root.resolve()
+    a.out = a.out.resolve()
     a.out.mkdir(parents=True, exist_ok=False)
     root = a.out / '中文 更新安装'
     shutil.copytree(a.root, root)
