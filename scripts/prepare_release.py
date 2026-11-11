@@ -28,6 +28,8 @@ WINDOWS_EXTRAS = ('qa-parser-windows-x64.qaupdate', 'qa-parser-windows-x64-runti
 def extra_artifacts(folder, data, verify=True):
     extras = data.get('windows_distribution')
     if extras is None:
+        if data.get('target') == 'windows-x64' and str(data.get('product_version', '')).startswith('1.'):
+            raise ValueError('v1 Windows requires signed split distribution evidence')
         return []  # Historical candidate metadata remains readable.
     if data.get('target') != 'windows-x64' or extras.get('schema_version') != 1:
         raise ValueError('Unexpected split distribution metadata')

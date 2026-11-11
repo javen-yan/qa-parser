@@ -1,12 +1,10 @@
 """Signed offline update transactions; no networking, no dependency installation."""
 from __future__ import annotations
 
-import base64
 import json
 from pathlib import Path
 import shutil
 import stat
-import uuid
 from zipfile import ZipFile
 
 from .windows_distribution import (APP_EXE, VERSION, canonical, check_files, atomic_json,

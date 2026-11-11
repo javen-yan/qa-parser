@@ -5,6 +5,10 @@ on:
   push:
     branches: ['codex/windows-offline-v1']
 
+env:
+  PYTHONUTF8: '1'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+
 permissions:
   contents: read
 

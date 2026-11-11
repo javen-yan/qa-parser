@@ -116,3 +116,13 @@ def test_windows_extras_required_verified_and_macos_remains_original(tmp_path):
     (folder / release.WINDOWS_EXTRAS[0]).write_bytes(b'tampered')
     with pytest.raises(ValueError, match='hash/size'):
         release.validate_candidates(incoming, 'abc')
+
+
+def test_v1_windows_cannot_publish_old_monolithic_evidence(tmp_path):
+    incoming = inputs(tmp_path)
+    metadata = incoming / 'windows-x64/release-metadata.json'
+    data = json.loads(metadata.read_text())
+    data['product_version'] = '1.0.0'
+    metadata.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match='v1 Windows requires'):
+        release.validate_candidates(incoming, 'abc')

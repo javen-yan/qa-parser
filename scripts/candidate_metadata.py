@@ -13,7 +13,9 @@ def write_metadata(archive, smoke, target, output, source_complete, startup=None
         raise ValueError('Native CLI and GUI smoke must pass before candidate metadata')
     with archive.open('rb') as stream:
         sha = hashlib.file_digest(stream, 'sha256').hexdigest()
-    data = {'schema_version': 1, 'status': 'passed', 'target': target, 'variant': 'light',
+    import tomllib
+    version = tomllib.loads((Path(__file__).resolve().parents[1] / 'pyproject.toml').read_text())['project']['version']
+    data = {'product_version': version, 'schema_version': 1, 'status': 'passed', 'target': target, 'variant': 'light',
             'commit': os.environ.get('GITHUB_SHA', ''), 'zip_sha256': sha,
             'bytes': archive.stat().st_size, 'native_smoke_passed': True,
             'source_closure_complete': source_complete,
@@ -51,6 +53,9 @@ def write_metadata(archive, smoke, target, output, source_complete, startup=None
             with path.open('rb') as stream:
                 checksum = hashlib.file_digest(stream, 'sha256').hexdigest()
             data['windows_distribution']['artifacts'].append({'filename': name, 'bytes': path.stat().st_size, 'sha256': checksum})
+        extra_artifacts(archive.parent, data)
+    if target == 'windows-x64':
+        from prepare_release import extra_artifacts
         extra_artifacts(archive.parent, data)
     output.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
 
