@@ -34,6 +34,8 @@ PLATFORM_TESTS = {'test_desktop_window.py': {'test_stop_service_reaps_owned_rend
 
 
 def exclusion_reason(filename, function):
+    if filename == 'test_macos_update.py' and sys.platform == 'win32':
+        return 'macOS bundle/symlink and manager handoff contracts; native macOS CI covers them'
     if filename == 'test_windows_update.py':
         import importlib.util
         if importlib.util.find_spec('cryptography') is None:
