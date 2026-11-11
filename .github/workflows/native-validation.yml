@@ -20,6 +20,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: ./.github/actions/build-windows
         env:
           QA_UPDATE_PRIVATE_KEY_HEX: ${{ secrets.QA_UPDATE_PRIVATE_KEY_HEX }}
@@ -61,6 +62,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: ./.github/actions/build-macos
         with:
           architecture: ${{ matrix.architecture }}
