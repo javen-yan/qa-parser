@@ -31,7 +31,7 @@ def test_draft_remains_private_until_public_upload_verified(monkeypatch, tmp_pat
         (work / 'delivery-record.json').write_text('{}')
     monkeypatch.setattr(p, 'sync', sync)
     def cleanup(*a, **kw):
-        assert kw == {'apply': True, 'verify_native_jobs': True}
+        assert kw == {'apply': True, 'verify_native_jobs': True, 'public_download_verified': True}
         calls.append('publish-and-clean')
         return {'release_url': 'url'}
     monkeypatch.setattr(p, 'cleanup', cleanup)
@@ -42,3 +42,27 @@ def test_draft_remains_private_until_public_upload_verified(monkeypatch, tmp_pat
     else:
         p.main()
         assert calls == ['assemble-private', 'public-sha-verification', 'publish-and-clean']
+
+
+def test_resumed_receipt_does_not_skip_full_public_verification(monkeypatch, tmp_path):
+    import io
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / 'scripts'))
+    p = importlib.import_module('publish_pipeline')
+    monkeypatch.setattr(p, 'settings', lambda env: {})
+    monkeypatch.setattr(p, 'check_idle', lambda: None)
+    monkeypatch.setattr(p.release_draft, 'api', lambda endpoint: {'draft': True})
+    owner = dict(commit='a' * 40, run_id='1', mode='tag', tag='v1.0.0')
+    monkeypatch.setattr(p, 'release_owner', lambda *a: (owner, 'qa-parser/releases/v1.0.0'))
+    monkeypatch.setattr(p, 'verify', lambda *a, **kw: {})
+    monkeypatch.setattr(p.release_draft, 'check_tag_commit', lambda *a: None)
+    monkeypatch.setattr(p, 'urlopen', lambda *a, **kw: io.BytesIO(b'{}'))
+    def unexpected(*a, **kw):
+        raise AssertionError('A saved receipt must not rebuild or upload')
+    monkeypatch.setattr(p, 'sync', unexpected)
+    monkeypatch.setattr(p.release_draft, 'finalize', unexpected)
+    def cleanup(*a, **kw):
+        assert kw == {'apply': True, 'verify_native_jobs': True, 'public_download_verified': False}
+        return {'release_url': 'url'}
+    monkeypatch.setattr(p, 'cleanup', cleanup)
+    monkeypatch.setattr(p.sys, 'argv', ['publish_pipeline', '--release-id', '123', '--work', str(tmp_path/'work'), '--evidence', str(tmp_path/'evidence')])
+    p.main()

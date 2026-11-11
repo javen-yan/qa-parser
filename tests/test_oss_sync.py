@@ -171,3 +171,23 @@ def test_fragment_cleanup_is_exact_key_only(sync):
         def abort_multipart_upload(self,*args):calls.append(args)
     sync.abort_stale_uploads(Bucket(),'owned/key.zip')
     assert calls==[('owned/key.zip','old')]
+
+
+def test_public_head_checks_metadata_without_downloading(sync, monkeypatch):
+    calls = []
+    class Response(io.BytesIO):
+        url = 'https://example.com/file.zip'
+        status = 200
+        headers = {'Content-Length': '3', 'x-oss-meta-sha256': 'a' * 64}
+        def read(self, *args):
+            raise AssertionError('HEAD validation must not download the archive')
+    def open_response(request, **kwargs):
+        calls.append(request.method)
+        return Response(b'abc')
+    monkeypatch.setattr(sync, 'urlopen', open_response)
+    sync.verify_public(Response.url, 3, metadata_digest='a' * 64)
+    with pytest.raises(ValueError, match='metadata mismatch'):
+        sync.verify_public(Response.url, 3, metadata_digest='b' * 64)
+    with pytest.raises(ValueError, match='did not match'):
+        sync.verify_public(Response.url, 4, metadata_digest='a' * 64)
+    assert calls == ['HEAD', 'HEAD', 'HEAD']

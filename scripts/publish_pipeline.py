@@ -65,6 +65,7 @@ def main():
     except HTTPError as error:
         if error.code != 404:
             raise
+    public_download_verified = False
     if receipt is None:
         if release['draft']:
             release_draft.finalize(repo, args.release_id,
@@ -73,8 +74,10 @@ def main():
         sync(['--repo', repo, '--release-id', args.release_id, '--target', 'all', '--work', str(args.work / 'oss'),
               '--archive-cache', str(args.work / 'finalize/inputs')])
         receipt = json.loads((args.work / 'oss/delivery-record.json').read_text())
+        public_download_verified = True
     (args.evidence / 'delivery-record.json').write_text(json.dumps(receipt, indent=2))
-    archived = cleanup(repo, args.release_id, receipt, apply=True, verify_native_jobs=True)
+    archived = cleanup(repo, args.release_id, receipt, apply=True, verify_native_jobs=True,
+                       public_download_verified=public_download_verified)
     (args.evidence / 'release-archive-result.json').write_text(json.dumps(archived, indent=2))
     retired = None
     if retire:

@@ -242,7 +242,7 @@ def upload_immutable(bucket, key, path):
     return 'uploaded'
 
 
-def verify_public(url, size, digest=None):
+def verify_public(url, size, digest=None, *, metadata_digest=None):
     # No signed URL, access key, ACL mutation or public permission change.
     if digest:
         print(f'Verifying anonymous download SHA-256 ({size} bytes)', flush=True)
@@ -252,6 +252,8 @@ def verify_public(url, size, digest=None):
             raise ValueError('Public download redirected to a credentialed/non-HTTPS URL')
         if response.status != 200 or int(response.headers.get('Content-Length', '-1')) != size:
             raise ValueError('Anonymous public download did not match uploaded object')
+        if metadata_digest and response.headers.get('x-oss-meta-sha256') != metadata_digest:
+            raise ValueError('Anonymous public object SHA-256 metadata mismatch')
         if digest:
             check = hashlib.sha256()
             count = 0
@@ -317,7 +319,7 @@ def main(argv=None):
         verify_public(report['receipt_url'], receipt_path.stat().st_size, sha(receipt_path))
         if args.cleanup_draft:
             from cleanup_oss_draft import cleanup
-            report['cleanup'] = cleanup(args.repo, args.release_id, receipt, apply=True)
+            report['cleanup'] = cleanup(args.repo, args.release_id, receipt, apply=True, public_download_verified=True)
     (args.work / 'oss-sync-report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if os.environ.get('GITHUB_STEP_SUMMARY'):

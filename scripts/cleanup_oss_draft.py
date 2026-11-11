@@ -37,7 +37,7 @@ def asset_identity(item):
     return {k: item.get(k) for k in ('id', 'name', 'state', 'size', 'digest')}
 
 
-def cleanup(repo, release_id, receipt, *, apply=False, verify_native_jobs=False):
+def cleanup(repo, release_id, receipt, *, apply=False, verify_native_jobs=False, public_download_verified=False):
     if repo != 'javen-yan/qa-parser' or not re.fullmatch(r'[1-9][0-9]*', str(release_id)):
         raise ValueError('Cleanup is limited to this project and numeric release IDs')
     if receipt.get('repository') != repo or str(receipt.get('release_id')) != str(release_id):
@@ -103,7 +103,12 @@ def cleanup(repo, release_id, receipt, *, apply=False, verify_native_jobs=False)
         url = urlsplit(item['url'])
         if url.scheme != 'https' or url.netloc != 'maiya-reader.oss-cn-beijing.aliyuncs.com' or url.username or url.password or url.query or url.fragment or url.path != '/' + item['key'] or not item['key'].startswith(prefix + '/'):
             raise ValueError('Receipt URL is outside the authorized destination')
-        verify_public(item['url'], item['bytes'], item['sha256'])
+        # Only the in-process uploader may reuse its just-completed full GET.
+        # Resume and standalone cleanup still perform a full public SHA check.
+        if public_download_verified:
+            verify_public(item['url'], item['bytes'], metadata_digest=item['sha256'])
+        else:
+            verify_public(item['url'], item['bytes'], item['sha256'])
     if formal:
         for row in receipt['targets']:
             mirrored[f"qa-parser-{row['target']}-candidate.zip"] = mirrored[row['filename']]

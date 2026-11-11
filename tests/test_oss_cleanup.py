@@ -139,3 +139,29 @@ def test_formal_release_preserves_stable_state_and_removes_duplicate_archive_ali
     assert release['draft'] is False and release['prerelease'] is False
     assert release['make_latest']=='true' and '正式发布。' in release['body']
     assert not any(endpoint.endswith('/releases/9') and method=='DELETE' for endpoint,method in calls)
+
+
+@pytest.mark.parametrize('fresh', [False, True])
+def test_only_fresh_in_process_verification_skips_second_full_download(setup, monkeypatch, fresh):
+    c, repo, release, receipt, current, run, calls = setup
+    checks = []
+    monkeypatch.setattr(c, 'verify_public', lambda *a, **kw: checks.append((a, kw)))
+    c.cleanup(repo, '9', receipt, apply=True, public_download_verified=fresh)
+    assert len(checks) == 2
+    for args, kwargs in checks:
+        if fresh:
+            assert len(args) == 2 and kwargs == {'metadata_digest': 'b' * 64}
+        else:
+            assert len(args) == 3 and args[2] == 'b' * 64 and not kwargs
+
+
+def test_fresh_verification_still_rejects_changed_public_metadata(setup, monkeypatch):
+    c, repo, release, receipt, current, run, calls = setup
+    def changed(*args, **kwargs):
+        assert kwargs == {'metadata_digest': 'b' * 64}
+        raise ValueError('metadata mismatch')
+    monkeypatch.setattr(c, 'verify_public', changed)
+    with pytest.raises(ValueError, match='metadata mismatch'):
+        c.cleanup(repo, '9', receipt, apply=True, public_download_verified=True)
+    assert release['draft'] and len(current) == 2
+    assert not any(method in ('PATCH', 'DELETE') for _, method in calls)
