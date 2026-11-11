@@ -18,7 +18,8 @@ def configure_windows_runtime(webview) -> str | None:
     """Pin the renderer to our portable runtime, never silently use Edge/IE."""
     if sys.platform != 'win32':
         return None
-    root = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False)
+    from .windows_distribution import resource_root
+    root = (resource_root() if getattr(sys, 'frozen', False)
             else Path(os.environ.get('QA_PARSER_WINDOWS_RESOURCES', 'build/windows/resources')).resolve())
     runtime = root / 'webview2'
     if not (runtime / 'msedgewebview2.exe').is_file():
@@ -89,6 +90,25 @@ def service_stopper(process):
 
 def _main(argv=None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    managed_nonce = None
+    from .windows_distribution import split_app
+    split = split_app()
+    if args[:1] == ['--managed-launch']:
+        import re
+        if not split or len(args) < 2 or not re.fullmatch('[0-9a-f]{48}', args[1]):
+            raise ValueError('Invalid managed launch')
+        managed_nonce = args[1]
+        args = args[2:]
+        managed_root = split[0].parent.parent
+        managed_version = split[1]['version']
+        gate = managed_root / ('.launch-' + managed_nonce + '.json')
+        deadline = time.monotonic() + 15
+        while not gate.exists():
+            if time.monotonic() > deadline:
+                raise RuntimeError('管理入口未完成启动，请从安装目录启动。')
+            time.sleep(.05)
+        if json.loads(gate.read_text()) != {'nonce': managed_nonce}:
+            raise ValueError('Invalid launch gate')
     if args[:1] == ['--diagnose-startup']:
         from .startup_diagnostics import run
         root = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path.cwd()
@@ -163,7 +183,8 @@ def _main(argv=None) -> int:
         else:
             screen = webview.screens[0]
             max_width, max_height = screen.width - 60, screen.height - 100
-        window = webview.create_window('题库转换', origin,
+        title = '题库转换' + (f" · 程序 {split[1]['version']} · 运行时 {split[1]['runtime_id'][:11]}" if split else '')
+        window = webview.create_window(title, origin,
                                        width=min(1120, max_width), height=min(800, max_height),
                                        min_size=(min(760, max_width), min(600, max_height)), text_select=True)
         closed = threading.Event()
@@ -178,6 +199,15 @@ def _main(argv=None) -> int:
                 window.destroy()
 
         window.events.closed += on_closed
+        if managed_nonce:
+            def report_ready():
+                # loaded fires after local HTTP served the actual application page.
+                from .windows_distribution import atomic_json
+                if window.run_js("JSON.stringify(!!document.getElementById('start') && !!document.getElementById('file-input'))") != 'true':
+                    return
+                atomic_json(managed_root / ('.ready-' + managed_nonce + '.json'),
+                            {'nonce': managed_nonce, 'version': managed_version, 'ready': True})
+            window.events.loaded += report_ready
         smoke_passed = threading.Event()
         if smoke:
             def smoke_loaded():
@@ -228,6 +258,11 @@ def _main(argv=None) -> int:
 def main(argv=None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     try:
+        from .windows_distribution import split_app, file_lock
+        split = split_app()
+        if split:
+            with file_lock(split[0].parent.parent, 'activity', shared=True):
+                return _main(args)
         return _main(args)
     except Exception as error:
         # CLI errors retain their existing contracts. Only an interactive

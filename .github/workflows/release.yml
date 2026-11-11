@@ -99,6 +99,9 @@ jobs:
           ref: ${{ github.sha }}
           path: .release-infra
       - uses: ./.release-infra/.github/actions/build-windows
+        env:
+          QA_UPDATE_PRIVATE_KEY_HEX: ${{ secrets.QA_UPDATE_PRIVATE_KEY_HEX }}
+          QA_UPDATE_PUBLIC_KEY_HEX: ${{ vars.QA_UPDATE_PUBLIC_KEY_HEX }}
         with:
           upload-artifacts: 'false'
       - name: Upload verified Windows candidate directly to this draft

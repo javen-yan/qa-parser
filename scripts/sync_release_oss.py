@@ -128,6 +128,18 @@ def prepare(repo, release_id, targets, work, *, plan_only=False, archive_cache=N
             with ZipFile(archive) as z:
                 if z.testzip() is not None:
                     raise ValueError('Release archive CRC check failed')
+        from prepare_release import extra_artifacts
+        supplemental = extra_artifacts(folder, data, verify=False)
+        extra_rows = {r['filename']: r for r in data.get('windows_distribution', {}).get('artifacts', [])}
+        for extra in supplemental:
+            row = extra_rows[extra.name]
+            remote = current.get(extra.name, {})
+            if remote.get('digest') != 'sha256:' + row['sha256'] or remote.get('size') != row['bytes'] or remote.get('state') != 'uploaded':
+                raise ValueError('Supplemental asset source/hash mismatch')
+            if not plan_only:
+                download(repo, remote, extra)
+        if not plan_only:
+            extra_artifacts(folder, data)
         checksum = folder / 'SHA256SUMS.txt'
         checksum.write_text(f"{data['zip_sha256']}  {filename}\n", encoding='utf-8')
         notes = folder / 'README.txt'
@@ -137,7 +149,7 @@ def prepare(repo, release_id, targets, work, *, plan_only=False, archive_cache=N
                          + ('此为候选草稿，不是正式版。\n' if owner['mode'] == 'manual' else ''), encoding='utf-8')
         rows.append({'target': target, 'prefix': prefix + '/' + target, 'filename': filename,
                      'sha256': data['zip_sha256'], 'bytes': data['bytes'],
-                     'files': [str(p) for p in (archive, metadata, checksum, notes)]})
+                     'files': [str(p) for p in (archive, metadata, checksum, notes, *supplemental)]})
     return {'schema_version': 1, 'status': 'planned' if plan_only else 'downloaded-and-verified',
             'repository': repo, 'release_id': str(release_id), 'release_url': release_url,
             'draft': release['draft'], 'commit': owner['commit'], 'run_id': owner['run_id'],

@@ -5,11 +5,13 @@
     "macos-arm64",
     "macos-x86_64"
   ],
-  "stable_release_approved": true,
-  "stable_release_blockers": [],
+  "stable_release_approved": false,
+  "stable_release_blockers": [
+    "v1.0.0 Windows split package native upgrade/rollback and both macOS native regressions pending"
+  ],
   "variant": "light",
   "optional_original_renderer": "Mac local full bundle only; not part of cloud basic candidate",
-  "approval_scope": "User explicitly requested upgrading the already published v0.3.5 to v0.3.6. Includes question boundary fixes, isolated numbered child analyses and clearer original-question identity in problem previews. Verify all three native packages and full public OSS downloads before publication. Preserve existing releases and source tags; disclose incomplete customer acceptance.",
+  "approval_scope": "v1.0.0 implementation and native validation of Windows offline signed updates. Preserve macOS distribution and historical releases; formal publication requires completed native evidence.",
   "known_limitations": [
     "Customer Windows 11 portable acceptance is incomplete",
     "macOS Developer ID signing/notarization is not complete",

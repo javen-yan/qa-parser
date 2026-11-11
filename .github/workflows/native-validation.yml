@@ -1,0 +1,74 @@
+name: Native distribution validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/windows-offline-v1']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-windows
+        env:
+          QA_UPDATE_PRIVATE_KEY_HEX: ${{ secrets.QA_UPDATE_PRIVATE_KEY_HEX }}
+          QA_UPDATE_PUBLIC_KEY_HEX: ${{ vars.QA_UPDATE_PUBLIC_KEY_HEX }}
+          PIP_CACHE_DIR: ${{ github.workspace }}/.cache/pip
+        with:
+          upload-artifacts: 'false'
+      - name: Record native update evidence and size
+        if: always()
+        shell: pwsh
+        run: |
+          foreach ($p in @('dist/windows-distribution-size.json', 'build/Windows update acceptance/update-validation.json', 'build/Windows split smoke/smoke-report.json')) {
+            if (Test-Path $p) { Get-Content -Raw $p }
+          }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: success()
+        with:
+          name: windows-v1-validation
+          path: |
+            dist/qa-parser-windows-x64-candidate.zip
+            dist/qa-parser-windows-x64.qaupdate
+            dist/windows-distribution-size.json
+            dist/release-metadata.json
+            build/Windows update acceptance/*.json
+          retention-days: 7
+          compression-level: 0
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            architecture: arm64
+          - runner: macos-15-intel
+            architecture: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-macos
+        with:
+          architecture: ${{ matrix.architecture }}
+          upload-artifacts: 'false'
+      - name: Record native validation evidence
+        if: always()
+        shell: bash
+        run: |
+          for p in dist/release-metadata.json 'build/中文 macOS smoke/smoke-report.json'; do
+            if test -f "$p"; then cat "$p"; fi
+          done

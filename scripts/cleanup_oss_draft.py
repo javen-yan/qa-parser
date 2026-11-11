@@ -83,7 +83,8 @@ def cleanup(repo, release_id, receipt, *, apply=False, verify_native_jobs=False,
         raise ValueError('Candidate Source tag cannot be resolved')
     if apply:
         check_source_tag(not release['draft'])
-    expected = {'release-manifest.json', 'SHA256SUMS.txt', 'RELEASE_NOTES.md'}
+    from prepare_release import WINDOWS_EXTRAS
+    expected = set(WINDOWS_EXTRAS) | {'release-manifest.json', 'SHA256SUMS.txt', 'RELEASE_NOTES.md'}
     for target in TARGETS:
         expected |= {f'qa-parser-{target}-candidate.zip', f'release-metadata-{target}.json'}
         if formal:
@@ -95,7 +96,7 @@ def cleanup(repo, release_id, receipt, *, apply=False, verify_native_jobs=False,
     all_objects.extend(receipt.get('release_uploads', []))
     for item in all_objects:
         name = item['key'].rsplit('/', 1)[-1]
-        is_source_asset = name.endswith(('-candidate.zip', '-light.zip')) or name.startswith('release-metadata-') or item in receipt.get('release_uploads', [])
+        is_source_asset = name in WINDOWS_EXTRAS or name.endswith(('-candidate.zip', '-light.zip')) or name.startswith('release-metadata-') or item in receipt.get('release_uploads', [])
         if name in expected and is_source_asset:
             if name in mirrored and mirrored[name] != item:
                 raise ValueError('Ambiguous mirror evidence')

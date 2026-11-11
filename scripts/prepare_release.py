@@ -22,6 +22,32 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+WINDOWS_EXTRAS = ('qa-parser-windows-x64.qaupdate', 'qa-parser-windows-x64-runtime.zip', 'windows-distribution-size.json')
+
+
+def extra_artifacts(folder, data, verify=True):
+    extras = data.get('windows_distribution')
+    if extras is None:
+        return []  # Historical candidate metadata remains readable.
+    if data.get('target') != 'windows-x64' or extras.get('schema_version') != 1:
+        raise ValueError('Unexpected split distribution metadata')
+    checks = extras.get('validation', {})
+    if not all(checks.get(k) is True for k in ('native_windows', 'signed_upgrade', 'startup_rollback', 'runtime_unchanged')) or checks.get('status') != 'passed':
+        raise ValueError('Windows update native validation incomplete')
+    rows = extras.get('artifacts', [])
+    if len(rows) != len(WINDOWS_EXTRAS) or {r.get('filename') for r in rows} != set(WINDOWS_EXTRAS):
+        raise ValueError('Windows supplemental artifact set incomplete')
+    paths = []
+    for row in rows:
+        if not re.fullmatch('[0-9a-f]{64}', str(row.get('sha256', ''))) or type(row.get('bytes')) is not int or row['bytes'] <= 0:
+            raise ValueError('Invalid supplemental artifact metadata')
+        path = folder / row['filename']
+        if verify and (not path.is_file() or path.stat().st_size != row['bytes'] or digest(path) != row['sha256']):
+            raise ValueError('Windows supplemental artifact hash/size mismatch')
+        paths.append(path)
+    return paths
+
+
 def validate_candidates(artifacts, commit):
     policy = json.loads((ROOT / 'packaging/release-policy.json').read_text())
     checked = []
@@ -41,6 +67,7 @@ def validate_candidates(artifacts, commit):
         with ZipFile(archive) as z:
             if z.testzip() is not None:
                 raise ValueError(f'ZIP integrity failed: {target}')
+        extra_artifacts(archive.parent, data)
         checked.append((target, archive, data))
     return checked
 
@@ -63,8 +90,13 @@ def assemble(artifacts, out, tag, commit):
         shutil.copy2(archive, out / filename)
         rows.append({'target': target, 'filename': filename, 'sha256': data['zip_sha256'],
                      'bytes': archive.stat().st_size, 'evidence': data})
-    (out / 'SHA256SUMS.txt').write_text(''.join(f"{r['sha256']}  {r['filename']}\n" for r in rows), encoding='utf-8')
-    manifest = {'schema_version': 1, 'tag': tag, 'commit': commit, 'prerelease': prerelease, 'artifacts': rows}
+    extras = []
+    for target, archive, data in checked:
+        for path in extra_artifacts(archive.parent, data):
+            shutil.copy2(path, out / path.name)
+            extras.append({'filename': path.name, 'sha256': digest(path), 'bytes': path.stat().st_size})
+    (out / 'SHA256SUMS.txt').write_text(''.join(f"{r['sha256']}  {r['filename']}\n" for r in rows + extras), encoding='utf-8')
+    manifest = {'schema_version': 1, 'tag': tag, 'commit': commit, 'prerelease': prerelease, 'artifacts': rows, 'supplemental_artifacts': extras}
     (out / 'release-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
     notes = f'''# 题库转换 {tag}
 
@@ -74,45 +106,26 @@ def assemble(artifacts, out, tag, commit):
 |---|---|---:|---|
 '''
     notes += ''.join(f"| {r['target']} | {r['filename']} | {r['bytes']} | `{r['sha256']}` |\n" for r in rows)
-    notes += '''
-## 本版更新
+    notes += """
+## Windows v1 双版本分发
 
-- 修复分析／详解中的连续操作步骤误拆成新题、导致真实题号重复和漏导出的问题；有独立答案或作答结构的题继续保留。
-- 修复题号标点变换时吞题、共享题组后的独立简答题被并入解析，以及缺答案的选择／填空题被误当作说明的边界问题。
-- 修复“公共分析＋编号解析”整段复制给每个子题的问题；公共分析共享，各题解析按题号分别归属，歧义继续复核。
-- 未导出预览明确显示原题号、同号第几处、题干开头及来源位置；重复原因列出对应内容，方便回到 Word 定位。
-- 本地19份真实样本：2,021个输出单元中1,923题导出，98题按现有表格交互策略跳过，0题待复核。新增4.docx的101题全部导出；原reference的1,920题保持1,822题导出、98题策略跳过。公开回归500项通过，79项按既有策略排除，真实题库不上传CI。
-- 客户环境、目标系统导入及最终显示仍需验收；当前样本通过不代表任意 Word 排版均无歧义。
+首次完整解压 ZIP，双击根目录题库转换.exe。管理更新.cmd 提供离线更新与恢复上一版本。
+.qaupdate 包仅更新业务程序；固定 WebView2、WMF 及对应源码归档由独立运行时版本管理。
+业务包包含 Python、界面和字体，不需要安装开发环境。运行时不兼容时使用新完整包。
+Mac ARM64/Intel 继续完整 .app 分发，资源布局与签名流程不变。
 
-## 延续功能
+## 导出约定
 
-- 支持共享材料复合题：每个可独立作答子题单独导出，继承材料、原图及来源位置，集中答案和解析按明确题号关联。组织结构与作答方式分别识别，未知题逐题报告，不因一题失败拒绝整批。
-- 填空题保留题干空位；按已验证的答案对应关系回填完整考点。多空答案按顺序用 ASCII 逗号连接，单空内部中文逗号和斜线同义答案不拆分，连续编号空不误拆成多道顶层题。
-- 区分排版表、静态材料表和作答交互表。仅表格内交互填空按策略跳过并保留具体证据，静态材料继续保留。报告分别列原题/题组、展开子题、输出单元、导出、策略跳过及失败/复核数量。
-- 纯选择和纯填空保持原模板；混合文档使用同名 Excel 内的“选择”“考点”及按需生成的“特殊题型”工作表。客户系统是否支持多工作表导入尚未验证。
-- 按原 Word 文件名输出同名 Excel 和图片目录，保留前导零、中文及空格；同名目录只放图片，说明和预览单独存放。
-- 可靠公式优先保留 `$$...$$` LaTeX 文本，不再因多个下标或同一字段多个公式强制转图；原始示意图不改内容，不可靠公式仅使用可信原始预览兜底，否则进入复核。
-- 显示引用与图片文件显式分离：Excel 中 `参考aaa001.png)` 对应实际 `001.png`；至少三位序号，超过 999 不截断。题干、选项、答案、解析、预览和缺图校验使用一致映射。
-- 难度输出为易／中／难，旧低／中／高只做词汇映射，原随机档位与可重现性保持不变。
-- Windows 启动自动诊断和受限恢复：仅对本应用固定可信哈希、签名状态通过验证且已复现来源标记阻止加载的组件处理，不提权、不改变安全策略或解锁其它文件。
-- Windows 与 Mac 共用分类、导出、资源编号和异常处理；原生 WebView 生成图片，资源随包提供。修复 Windows 系统编码、环境变量大小写，以及 Mac 退出清理和 Retina 快照比例问题。
+显示引用 `参考aaa001.png)` 对应实际 `001.png`，难度保持易／中／难。
+多工作表导入尚未验证；本次分发改造不改变既有解析及导出规则。
 
-## 使用方式
+## 验证范围
 
-完整解压对应平台ZIP。Windows进入“题库转换”文件夹双击EXE，保留_internal；Mac打开.app。无需安装Python、Office、MathType、Node或字体。选择题型→添加Word→转换→预览→打开结果包。不要单独复制EXE或HTML。
-
-## 验证范围与限制
-
-每个平台分别原生构建，并对实际解压后的同一ZIP执行合成题目、图片/公式、WMF和原生窗口检查；开发核心与冻结程序结果比较通过。输出门槛覆盖同一字段多下标公式保持文本、显示引用与物理文件映射、易中难档位、同名包布局、重复名拒绝和未知结构复核；开发态与冻结态结果一致。详细平台证据见release-manifest.json及对应源码构建的CI日志。
-
-v0.3.3 历史 Mac 本地真实样本回归（以下历史结果非本版重新验收）：原九份900题导出896题，2题按表格交互策略跳过、2题复核。相比v0.3.2原899题导出，新增隔离为化学填空第19/49题表格交互和化学填空2第30题无空位的开放计算子问；第62题原公式问题继续复核，不是900/900全覆盖。原900题的题干、选项、解析、原始分段和难度保持不变。
-
-新八份样本共722个原题/题组、230个展开子题、863个输出单元，导出748题，96题策略跳过、19题复核。两份填空2正文XML重复，按正文去重后七份为622个原题/题组、230个展开子题、763个输出单元，664题导出、85题策略跳过、14题复核。展开子题是输出单元的子集，不能与原题/题组数直接相加。含重复样本的19个非策略问题为9题未支持作答方式、8题空位/答案对应不足、2题公式上下标问题；不能猜配图片内空位或开放问答。
-
-本地17份重复处理语义一致，原公式源字节、LaTeX和原图哈希保持不变。旧v1任务按原配置读取，不被新策略改写。源码及打包程序在三平台运行纯合成复合题、填空回填、表格策略及混合工作表检查；真实题库未上传CI，不声称真实题库已在Windows完成验收。此云端轻量包没有可选LibreOffice原图引擎，复杂原图可能被明确隔离。Windows x86尚未支持，Windows ARM不在本次范围。
-
-客户Windows11断网/非管理员/安全策略、Mac签名公证及目标APP导入渲染仍需验收。程序仅从本机读取题目，运行时不下载依赖。请同时保留包内licenses和使用说明；发布状态不代表客户环境已经验收。
-'''
+发布必须通过三平台原生构建、窗口/转换检查与 Windows 签名更新、启动失败回退验证。
+私有题库不上传 CI，客户 Windows 11 实机、Mac 签名公证及目标系统导入仍需验收。
+以 release-manifest.json 中原生证据为准；不宣称任意文档 900/900 全覆盖。
+不要单独复制 EXE；请保留全部许可证及源码归档。程序离线运行，不自动下载依赖。
+"""
     (out / 'RELEASE_NOTES.md').write_text(notes, encoding='utf-8')
     return manifest
 

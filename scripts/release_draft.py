@@ -17,7 +17,7 @@ import time
 import tomllib
 from urllib.parse import quote
 
-from prepare_release import ROOT, assemble, validate_candidates
+from prepare_release import ROOT, assemble, validate_candidates, extra_artifacts
 
 TARGETS = ('windows-x64', 'macos-arm64', 'macos-x86_64')
 PREFIX = '<!-- qa-parser-release-owner:'
@@ -193,6 +193,8 @@ def upload_candidate(repo, release_id, owner, target, archive, metadata):
             data.get('commit') == owner['commit'] and data.get('zip_sha256') == sha(archive) and
             data.get('native_smoke_passed') and data.get('source_closure_complete') and data.get('variant') == 'light'):
         raise ValueError('Native candidate metadata gate failed')
+    for path in extra_artifacts(archive.parent, data):
+        upload(repo, release_id, owner, path)
     upload(repo, release_id, owner, archive)
     upload(repo, release_id, owner, metadata, f'release-metadata-{target}.json')
 
@@ -214,12 +216,24 @@ def finalize(repo, release_id, owner, work, *, keep_draft=False, assembler=None)
             path = directory / local
             api(f"repos/{repo}/releases/assets/{current[remote]['id']}", output=path)
             check_asset(path, current[remote])
+        data = json.loads((directory / 'release-metadata.json').read_text())
+        for path in extra_artifacts(directory, data, verify=False):
+            if path.name not in current:
+                raise ValueError('Missing Windows supplemental asset')
+            api(f"repos/{repo}/releases/assets/{current[path.name]['id']}", output=path)
+            check_asset(path, current[path.name])
+            candidate_names.add(path.name)
+        extra_artifacts(directory, data)
     out = work / 'assembled'
     if saved['mode'] == 'tag':
         (assembler or assemble)(inputs, out, saved['tag'], owner['commit'])
     else:
         checked = validate_candidates(inputs, owner['commit'])
         out.mkdir()
+        import shutil
+        for target, archive, data in checked:
+            for path in extra_artifacts(archive.parent, data):
+                shutil.copy2(path, out / path.name)
         rows = [{'target': target, 'filename': archive.name, 'sha256': sha(archive),
                  'bytes': archive.stat().st_size, 'evidence': data} for target, archive, data in checked]
         manifest = {'schema_version': 1, 'tag': saved['tag'], 'commit': owner['commit'],

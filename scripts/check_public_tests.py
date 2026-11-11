@@ -34,6 +34,10 @@ PLATFORM_TESTS = {'test_desktop_window.py': {'test_stop_service_reaps_owned_rend
 
 
 def exclusion_reason(filename, function):
+    if filename == 'test_windows_update.py':
+        import importlib.util
+        if importlib.util.find_spec('cryptography') is None:
+            return 'Windows updater crypto tests run in Windows native CI; not a macOS runtime dependency'
     if filename in PRIVATE_MODULES:
         return PRIVATE_MODULES[filename]
     if function in PRIVATE_TESTS.get(filename, set()):

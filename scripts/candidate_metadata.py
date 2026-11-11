@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 
-def write_metadata(archive, smoke, target, output, source_complete, startup=None, composite=None):
+def write_metadata(archive, smoke, target, output, source_complete, startup=None, composite=None, windows_update=None):
     report = json.loads(smoke.read_text(encoding='utf-8'))
     if report.get('status') != 'passed' or report.get('gui', {}).get('status') != 'passed':
         raise ValueError('Native CLI and GUI smoke must pass before candidate metadata')
@@ -35,6 +35,23 @@ def write_metadata(archive, smoke, target, output, source_complete, startup=None
             or runs['development']['semantic_sha256'] != runs['frozen'].get('semantic_sha256')):
             raise ValueError('Composite source and frozen semantics must both pass and match')
         data['composite_validation'] = business
+    if windows_update is not None:
+        if target != 'windows-x64':
+            raise ValueError('Split metadata is Windows-only')
+        from prepare_release import WINDOWS_EXTRAS, extra_artifacts
+        validation = json.loads(windows_update.read_text())
+        size_file = archive.parent / 'windows-distribution-size.json'
+        sizes = json.loads(size_file.read_text())
+        sizes.update(full_zip_bytes=archive.stat().st_size, native_validation=validation['status'])
+        size_file.write_text(json.dumps(sizes, indent=2))
+        data['windows_distribution'] = {'schema_version': 1, 'runtime_id': sizes['runtime_id'],
+            'validation': validation, 'artifacts': []}
+        for name in WINDOWS_EXTRAS:
+            path = archive.parent / name
+            with path.open('rb') as stream:
+                checksum = hashlib.file_digest(stream, 'sha256').hexdigest()
+            data['windows_distribution']['artifacts'].append({'filename': name, 'bytes': path.stat().st_size, 'sha256': checksum})
+        extra_artifacts(archive.parent, data)
     output.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
@@ -47,10 +64,11 @@ if __name__ == '__main__':
     p.add_argument('--runtime-lock', type=Path, required=True)
     p.add_argument('--startup', type=Path)
     p.add_argument('--composite', type=Path)
+    p.add_argument('--windows-update', type=Path)
     a = p.parse_args()
     lock = json.loads(a.runtime_lock.read_text(encoding='utf-8'))
     if a.target == 'windows-x64':
         complete = not lock['wmf']['missing_sources']
     else:
         complete = lock.get('source_closure_complete') is True
-    write_metadata(a.archive, a.smoke, a.target, a.output, complete, a.startup, a.composite)
+    write_metadata(a.archive, a.smoke, a.target, a.output, complete, a.startup, a.composite, a.windows_update)

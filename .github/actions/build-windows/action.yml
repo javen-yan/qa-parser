@@ -85,12 +85,21 @@ runs:
         $env:GITHUB_SHA = (git rev-parse HEAD).Trim()
         python scripts/composite_smoke.py --exe 'build/中文 Windows smoke/中文 解压/题库转换/题库转换.exe' --out 'build/复合 Windows 验证'
         if ($LASTEXITCODE -ne 0) { throw 'Composite frozen acceptance failed' }
+    - name: Build signed Windows split distribution
+      shell: pwsh
+      run: |
+        python scripts/build_windows_distribution.py
+        if ($LASTEXITCODE -ne 0) { throw 'Signed split build failed; configure fixed release keys' }
+        python scripts/windows_smoke.py --exe 'dist/windows-split/题库转换/题库转换.exe' --out 'build/Windows split smoke' --gui
+        if ($LASTEXITCODE -ne 0) { throw 'Split native acceptance failed' }
+        python scripts/windows_update_smoke.py --root 'dist/windows-split/题库转换' --out 'build/Windows update acceptance'
+        if ($LASTEXITCODE -ne 0) { throw 'Signed offline upgrade/rollback acceptance failed' }
     - name: Create portable ZIP only after successful smoke
       shell: pwsh
       run: |
         $env:GITHUB_SHA = (git rev-parse HEAD).Trim()
-        Copy-Item 'build/中文 Windows smoke/portable-candidate.zip' 'dist/qa-parser-windows-x64-candidate.zip'
-        python scripts/candidate_metadata.py --archive dist/qa-parser-windows-x64-candidate.zip --smoke 'build/中文 Windows smoke/smoke-report.json' --target windows-x64 --output dist/release-metadata.json --runtime-lock packaging/windows-runtime-lock.json --startup 'build/Windows startup diagnostics/summary.json' --composite 'build/复合 Windows 验证/composite-report.json'
+        Copy-Item 'build/Windows split smoke/portable-candidate.zip' 'dist/qa-parser-windows-x64-candidate.zip'
+        python scripts/candidate_metadata.py --archive dist/qa-parser-windows-x64-candidate.zip --smoke 'build/Windows split smoke/smoke-report.json' --target windows-x64 --output dist/release-metadata.json --runtime-lock packaging/windows-runtime-lock.json --startup 'build/Windows startup diagnostics/summary.json' --composite 'build/复合 Windows 验证/composite-report.json' --windows-update 'build/Windows update acceptance/update-validation.json'
         if ($LASTEXITCODE -ne 0) { throw 'Candidate metadata validation failed' }
         Get-FileHash 'dist/qa-parser-windows-x64-candidate.zip' -Algorithm SHA256 | Format-List | Out-File 'build/windows-zip-sha256.txt'
         @'
@@ -106,6 +115,9 @@ runs:
         path: |
           dist/qa-parser-windows-x64-candidate.zip
           dist/release-metadata.json
+          dist/qa-parser-windows-x64.qaupdate
+          dist/qa-parser-windows-x64-runtime.zip
+          dist/windows-distribution-size.json
         if-no-files-found: error
         retention-days: 14
         compression-level: 0
@@ -114,6 +126,8 @@ runs:
       with:
         name: windows-build-evidence
         path: |
+          build/Windows split smoke/*.json
+          build/Windows update acceptance/*.json
           build/windows-public-tests.json
           build/windows-public-tests.xml
           build/windows/resources-manifest.json

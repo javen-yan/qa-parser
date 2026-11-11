@@ -2,6 +2,9 @@ name: Windows portable candidate
 
 on:
   workflow_call:
+    secrets:
+      QA_UPDATE_PRIVATE_KEY_HEX:
+        required: true
     inputs:
       upload_artifacts:
         type: boolean
@@ -27,6 +30,8 @@ jobs:
     env:
       PYTHONUTF8: '1'
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      QA_UPDATE_PRIVATE_KEY_HEX: ${{ secrets.QA_UPDATE_PRIVATE_KEY_HEX }}
+      QA_UPDATE_PUBLIC_KEY_HEX: ${{ vars.QA_UPDATE_PUBLIC_KEY_HEX }}
       PIP_CACHE_DIR: ${{ github.workspace }}/.cache/pip
     steps:
       - name: Prepare tiny Actions storage probe

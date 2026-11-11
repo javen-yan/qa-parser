@@ -187,7 +187,15 @@ def relocate_bundle(executable: Path, output: Path):
     before = file_inventory(source)
     require(before, 'Empty portable bundle')
     require(not any(name.endswith(('.dylib', '.so')) or any(part.endswith('.app') for part in Path(name).parts) for name in before), 'Mac/Unix native resources leaked into Windows package')
-    web = source / '_internal/qa_parser/web'
+    split = (source / 'install-state.json').is_file()
+    business = source
+    runtime = source / '_internal'
+    if split:
+        state = json.loads((source / 'install-state.json').read_text())
+        business = source / 'app' / ('v' + state['current'])
+        data = json.loads((business / 'app-manifest.json').read_text())
+        runtime = source / 'runtime' / data['runtime_id']
+    web = business / '_internal/qa_parser/web'
     required_web = ROOT / 'src/qa_parser/web'
     checked = 0
     for original in required_web.rglob('*'):
@@ -196,12 +204,12 @@ def relocate_bundle(executable: Path, output: Path):
             require(target.is_file(), f'Missing frozen display resource: {target}')
             require(hashlib.sha256(target.read_bytes()).digest() == hashlib.sha256(original.read_bytes()).digest(), f'Frozen display resource differs: {target}')
             checked += 1
-    native = [executable.resolve(), source / '_internal/wmf/bin/wmf2gd.exe', source / '_internal/webview2/msedgewebview2.exe']
+    native = [executable.resolve(), runtime / 'wmf/bin/wmf2gd.exe', runtime / 'webview2/msedgewebview2.exe']
     for binary in native:
         require(binary.is_file(), f'Missing bundled native executable: {binary}')
         check_pe_x64(binary)
-    require((source / '_internal/wmf/fonts/fontmap').is_file(), 'Bundled WMF fontmap missing')
-    manifest_path = source / '_internal/resources-manifest.json'
+    require((runtime / 'wmf/fonts/fontmap').is_file(), 'Bundled WMF fontmap missing')
+    manifest_path = runtime / 'resources-manifest.json'
     require(manifest_path.is_file(), 'Native resource integrity manifest missing')
     manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
     require(manifest.get('schema_version') == 1 and manifest.get('platform') == 'win32' and manifest.get('architecture') == 'x64', 'Unexpected resource manifest format/platform')
@@ -211,9 +219,11 @@ def relocate_bundle(executable: Path, output: Path):
         require(isinstance(name, str) and not name.startswith('/') and '\\' not in name and ':' not in name and '..' not in name.split('/'), 'Unsafe manifest path')
         require(name not in listed, 'Duplicate native resource manifest entry')
         listed.add(name)
-        target = source / '_internal' / name
+        target = runtime / name
         require(target.is_file() and target.stat().st_size == entry['bytes'] and sha_file(target) == entry['sha256'], f'Native resource changed or missing: {name}')
     actual = {name.removeprefix('_internal/') for name in before if name.startswith(('_internal/wmf/', '_internal/webview2/', '_internal/licenses/'))}
+    if split:
+        actual = {p.relative_to(runtime).as_posix() for p in runtime.rglob('*') if p.is_file() and p.parts[len(runtime.parts)] in ('wmf', 'webview2', 'licenses')}
     require(listed == actual, 'Native resource manifest does not cover staged runtime exactly')
     archive = output / 'portable-candidate.zip'
     with ZipFile(archive, 'x', compression=ZIP_DEFLATED, compresslevel=6) as z:
@@ -353,7 +363,9 @@ def main(argv=None):
             require(gui['status'] == 'passed', 'Native window smoke did not pass')
             report['gui'] = gui
         if executable:
-            require(file_inventory(executable.parent) == bundle_before, 'Application wrote or changed files inside portable program directory')
+            after = file_inventory(executable.parent)
+            after = {k:v for k,v in after.items() if k not in ('.operation.lock', '.activity.lock')}
+            require(after == bundle_before, 'Application wrote or changed files inside portable program directory')
             report['program_directory_content_unchanged'] = True
         report['status'] = 'passed'
         report['frozen_matches_development'] = bool(args.exe)

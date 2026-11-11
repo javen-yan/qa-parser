@@ -83,11 +83,36 @@ def test_remote_asset_mismatch_never_publishes_draft(tmp_path, monkeypatch):
     assert not any(c[:2] == ('release', 'edit') for c in calls)
 
 
-def test_explicitly_approved_stable_version_keeps_real_acceptance_limits(tmp_path):
+def test_explicitly_approved_stable_version_keeps_real_acceptance_limits(tmp_path, monkeypatch):
+    original = release.json.loads
+    monkeypatch.setattr(release.json, 'loads', lambda value: dict(original(value), stable_release_approved=True)
+                        if 'stable_release_approved' in value else original(value))
     result=release.assemble(inputs(tmp_path),tmp_path/'stable','v'+VERSION,'abc')
     assert not result['prerelease']
     notes=(tmp_path/'stable/RELEASE_NOTES.md').read_text()
     assert '正式发布' in notes and '仍需验收' in notes
     assert '参考aaa001.png)' in notes and '实际 `001.png`' in notes
-    assert '导出896题' in notes and '导出748题' in notes and '易／中／难' in notes
-    assert '96题策略跳过' in notes and '多工作表导入尚未验证' in notes
+    assert '离线更新' in notes and '易／中／难' in notes
+    assert 'Mac ARM64/Intel' in notes and '多工作表导入尚未验证' in notes
+
+
+def test_windows_extras_required_verified_and_macos_remains_original(tmp_path):
+    incoming = inputs(tmp_path)
+    folder = incoming / 'windows-x64'
+    metadata = folder / 'release-metadata.json'
+    data = json.loads(metadata.read_text())
+    extra = {'schema_version': 1, 'validation': {'status': 'passed', 'native_windows': True,
+             'signed_upgrade': True, 'startup_rollback': True, 'runtime_unchanged': True}, 'artifacts': []}
+    for name in release.WINDOWS_EXTRAS:
+        path = folder / name
+        path.write_bytes(b'synthetic verified supplementary artifact')
+        extra['artifacts'].append({'filename': name, 'bytes': path.stat().st_size, 'sha256': release.digest(path)})
+    data['windows_distribution'] = extra
+    metadata.write_text(json.dumps(data))
+    result = release.assemble(incoming, tmp_path / 'split', CANDIDATE_TAG, 'abc')
+    assert len(result['artifacts']) == 3 and len(result['supplemental_artifacts']) == 3
+    for target in ('macos-arm64', 'macos-x86_64'):
+        assert release.digest(tmp_path / 'split' / f'qa-parser-{CANDIDATE_TAG}-{target}-light.zip') == release.digest(incoming / target / f'qa-parser-{target}-candidate.zip')
+    (folder / release.WINDOWS_EXTRAS[0]).write_bytes(b'tampered')
+    with pytest.raises(ValueError, match='hash/size'):
+        release.validate_candidates(incoming, 'abc')

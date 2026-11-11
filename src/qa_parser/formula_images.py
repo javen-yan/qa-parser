@@ -33,7 +33,11 @@ def _wmf_runtime(directory: Path) -> tuple[str | None, list[str]]:
     application bundle remains usable and moving the bundle is safe.
     """
     if getattr(sys, 'frozen', False):
-        root = Path(sys._MEIPASS) / 'wmf'
+        if sys.platform == 'win32':
+            from .windows_distribution import resource_root
+            root = resource_root() / 'wmf'
+        else:
+            root = Path(sys._MEIPASS) / 'wmf'
         executable = root / 'bin' / ('wmf2gd.exe' if sys.platform == 'win32' else 'wmf2gd')
         fonts = root / 'fonts'
         if not executable.is_file() or not (fonts / 'fontmap').is_file():
